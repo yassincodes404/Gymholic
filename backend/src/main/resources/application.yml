@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: gymholic-backend
+  
+  # Default JPA settings (overridden by profiles)
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Flyway
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  # Redis / Caching
+  cache:
+    type: redis
+
+  # Jackson date handling
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  error:
+    include-message: always
+
+# JWT configuration (overridden by env vars)
+app:
+  jwt:
+    secret: ${JWT_SECRET:default-secret-for-local-dev-only}
+    expiration-ms: 86400000 # 1 day
+    refresh-expiration-ms: 604800000 # 7 days
+  
+  cors:
+    allowed-origins: ${FRONTEND_URL:http://localhost:5173}
+  
+  mail:
+    from: ${MAIL_USERNAME:noreply@gymholic.com}
+
+# Actuator endpoints
+management:
+  health:
+    mail:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

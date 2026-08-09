@@ -1,0 +1,104 @@
+# ================================================
+# Gymholic — Production Docker Compose
+# ================================================
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# ================================================
+
+services:
+
+  # ---- PostgreSQL ----
+  postgres:
+    image: postgres:16-alpine
+    container_name: gymholic-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - gymholic-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---- Redis ----
+  redis:
+    image: redis:7-alpine
+    container_name: gymholic-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - gymholic-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Backend (Spring Boot) ----
+  backend:
+    image: ghcr.io/yassincodes404/gymholic-backend:${IMAGE_TAG:-latest}
+    container_name: gymholic-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    networks:
+      - gymholic-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---- Frontend ----
+  frontend:
+    image: ghcr.io/yassincodes404/gymholic-frontend:${IMAGE_TAG:-latest}
+    container_name: gymholic-frontend
+    restart: unless-stopped
+    networks:
+      - gymholic-net
+
+  # ---- Nginx (Reverse Proxy) ----
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: gymholic-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - gymholic-net
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  gymholic-net:
+    driver: bridge

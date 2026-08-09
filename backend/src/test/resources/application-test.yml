@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+  flyway:
+    enabled: false
+
+  mail:
+    host: localhost
+    port: 1025
+
+  data:
+    redis:
+      # Mocking redis isn't straightforward without testcontainers, but spring-boot doesn't strictly fail on load if redis isn't accessed in @PostConstruct.
+      # For safety, let's disable redis repositories/cache auto-config if needed, but usually it tries to connect lazily.
+      host: localhost
+      port: 6379

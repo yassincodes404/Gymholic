@@ -1,0 +1,46 @@
+# ========================
+# Gymholic .gitignore
+# ========================
+
+# ---- Environment ----
+.env
+.env.local
+.env.*.local
+
+# ---- Java / Maven ----
+backend/target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+
+# ---- Node / npm ----
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# ---- IDE ----
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---- Docker ----
+docker-compose.override.yml
+postgres_data/
+redis_data/
