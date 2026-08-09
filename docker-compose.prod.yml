@@ -79,9 +79,7 @@ services:
 
   # ---- Nginx (Reverse Proxy) ----
   nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
+    image: ghcr.io/yassincodes404/gymholic-nginx:${IMAGE_TAG:-latest}
     container_name: gymholic-nginx
     restart: unless-stopped
     ports:
