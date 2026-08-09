@@ -30,17 +30,19 @@ jobs:
             echo "IMAGE_TAG=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
           fi
 
-      - name: Deploy to Hostinger
-        uses: hostinger/deploy-action@v1
+      - name: Deploy to Hostinger via SSH
+        uses: appleboy/ssh-action@v1.2.4
         with:
-          api_key: ${{ secrets.HOSTINGER_API_KEY }}
-          vm_id: ${{ vars.HOSTINGER_VM_ID }}
-          # Instead of running the whole project from source, we just pull the compose file
-          # and then use it to pull the pre-built images.
-          command: |
-            echo "Deploying version $IMAGE_TAG"
-            export IMAGE_TAG=$IMAGE_TAG
-            # Note: This assumes docker-compose.prod.yml is already present on the server in the current directory.
-            # Usually, deploy-action handles syncing the files first.
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          script: |
+            echo "Deploying version ${{ env.IMAGE_TAG }}"
+            
+            # Create a .env file containing the image tag dynamically
+            echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env.deploy
+            
+            # Pull and restart using the tag
+            docker compose -f docker-compose.prod.yml --env-file .env.deploy pull
+            docker compose -f docker-compose.prod.yml --env-file .env.deploy up -d
