@@ -23,26 +23,77 @@ jobs:
       - name: Set IMAGE_TAG
         run: |
           if [ "${{ github.event_name }}" == "workflow_run" ]; then
-            echo "IMAGE_TAG=sha-${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
-            # Re-format to the 7-character short SHA used by docker/metadata-action
-            echo "IMAGE_TAG=sha-$(echo ${{ github.event.workflow_run.head_sha }} | cut -c1-7)" >> $GITHUB_ENV
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           else
-            echo "IMAGE_TAG=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+            HEAD_SHA="${{ github.sha }}"
           fi
+          echo "IMAGE_TAG=sha-${HEAD_SHA:0:7}" >> $GITHUB_ENV
 
-      - name: Deploy to Hostinger via SSH
-        uses: appleboy/ssh-action@v1.2.4
+      - name: Copy docker-compose.prod.yml to Hostinger
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USERNAME }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
+          source: "docker-compose.prod.yml"
+          target: "~/gymholic"
+
+      - name: Deploy to Hostinger via SSH
+        uses: appleboy/ssh-action@v1.2.4
+        env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: GHCR_USERNAME,GHCR_TOKEN
           script: |
+            set -e
+
+            mkdir -p ~/gymholic
+            cd ~/gymholic
+
             echo "Deploying version ${{ env.IMAGE_TAG }}"
-            
-            # Create a .env file containing the image tag dynamically
-            echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" > .env.deploy
-            
-            # Pull and restart using the tag
-            docker compose -f docker-compose.prod.yml --env-file .env.deploy pull
-            docker compose -f docker-compose.prod.yml --env-file .env.deploy up -d
+
+            if [ ! -s .env ]; then
+              echo "Missing ~/gymholic/.env on the VPS. Create it from .env.example with production values, then rerun this workflow."
+              exit 1
+            fi
+
+            required_vars="POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD JWT_SECRET FRONTEND_URL MAIL_HOST MAIL_PORT"
+            for var in $required_vars; do
+              if ! grep -Eq "^${var}=.+" .env; then
+                echo "Missing required variable in ~/gymholic/.env: ${var}"
+                exit 1
+              fi
+            done
+
+            cp .env .env.runtime
+            printf "\nIMAGE_TAG=%s\n" "${{ env.IMAGE_TAG }}" >> .env.runtime
+
+            if [ -n "$GHCR_USERNAME" ] && [ -n "$GHCR_TOKEN" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            fi
+
+            docker compose -f docker-compose.prod.yml --env-file .env.runtime pull
+            docker compose -f docker-compose.prod.yml --env-file .env.runtime up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml --env-file .env.runtime ps
+
+            for i in $(seq 1 20); do
+              status="$(docker inspect --format='{{.State.Health.Status}}' gymholic-backend 2>/dev/null || true)"
+              if [ "$status" = "healthy" ]; then
+                break
+              fi
+              if [ "$i" = "20" ]; then
+                echo "Backend did not become healthy. Current status: ${status:-unknown}"
+                docker compose -f docker-compose.prod.yml --env-file .env.runtime logs --tail=100 backend
+                exit 1
+              fi
+              sleep 5
+            done
+
+            curl -fsS http://localhost/ >/dev/null
+            curl -fsS http://localhost/actuator/health >/dev/null

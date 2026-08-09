@@ -7,8 +7,10 @@ function App() {
 
   useEffect(() => {
     const checkBackend = async () => {
+      const healthUrl = import.meta.env.VITE_HEALTH_URL || '/actuator/health';
+
       try {
-        const response = await fetch('http://localhost:8080/actuator/health');
+        const response = await fetch(healthUrl);
         if (response.ok) {
           const data = await response.json();
           setBackendStatus(data.status === 'UP' ? '✅ Connected' : '⚠️ Issues Detected');
@@ -22,8 +24,8 @@ function App() {
           setBackendStatus('❌ Failed to connect (HTTP ' + response.status + ')');
           setDbStatus('❌ Unknown');
         }
-      } catch (error) {
-        setBackendStatus('❌ Cannot reach backend at http://localhost:8080');
+      } catch {
+        setBackendStatus(`❌ Cannot reach backend at ${healthUrl}`);
         setDbStatus('❌ Unknown');
       }
     };
