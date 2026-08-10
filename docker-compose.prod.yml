@@ -85,6 +85,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
     networks:
       - gymholic-net
     depends_on:
@@ -92,6 +95,15 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
+
+  # ---- Certbot (SSL Certificate Management) ----
+  certbot:
+    image: certbot/certbot:latest
+    container_name: gymholic-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
   postgres_data:
