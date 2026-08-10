@@ -1,59 +1,63 @@
-import { useEffect, useState } from 'react';
-import './App.css';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { PublicLayout } from './layouts/PublicLayout';
+import { DashboardLayout } from './layouts/DashboardLayout';
 
-function App() {
-  const [backendStatus, setBackendStatus] = useState<string>('Checking...');
-  const [dbStatus, setDbStatus] = useState<string>('Checking...');
+import { LandingPage } from './pages/public/LandingPage';
+import { LoginPage } from './pages/auth/LoginPage';
+import { RegisterPage } from './pages/auth/RegisterPage';
+import { AdminLoginPage } from './pages/admin/AdminLoginPage';
+import { AssessmentPage } from './pages/assessment/AssessmentPage';
+import { BookingPage } from './pages/booking/BookingPage';
+import { PaymentPage } from './pages/booking/PaymentPage';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { ClientDashboard } from './pages/client/ClientDashboard';
 
-  useEffect(() => {
-    const checkBackend = async () => {
-      const healthUrl = import.meta.env.VITE_HEALTH_URL || '/actuator/health';
-
-      try {
-        const response = await fetch(healthUrl);
-        if (response.ok) {
-          const data = await response.json();
-          setBackendStatus(data.status === 'UP' ? '✅ Connected' : '⚠️ Issues Detected');
-          
-          if (data.components?.db?.status === 'UP') {
-            setDbStatus('✅ Connected to PostgreSQL');
-          } else {
-            setDbStatus('✅ Backend is up, but DB details are hidden in prod profile or down');
-          }
-        } else {
-          setBackendStatus('❌ Failed to connect (HTTP ' + response.status + ')');
-          setDbStatus('❌ Unknown');
-        }
-      } catch {
-        setBackendStatus(`❌ Cannot reach backend at ${healthUrl}`);
-        setDbStatus('❌ Unknown');
-      }
-    };
-
-    checkBackend();
-  }, []);
-
+export const AppRouter: React.FC = () => {
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto' }}>
-      <h1 style={{ color: '#10b981' }}>Gymholic Skeleton</h1>
-      <p>This is the React frontend running on Vite.</p>
-      
-      <div style={{ marginTop: '2rem', padding: '1.5rem', background: '#f3f4f6', borderRadius: '8px' }}>
-        <h2 style={{ marginTop: 0, fontSize: '1.25rem' }}>System Status</h2>
-        <ul style={{ listStyleType: 'none', padding: 0, lineHeight: 2 }}>
-          <li>
-            <strong>Frontend:</strong> ✅ Running (Vite)
-          </li>
-          <li>
-            <strong>Backend (Spring Boot):</strong> {backendStatus}
-          </li>
-          <li>
-            <strong>Database (PostgreSQL):</strong> {dbStatus}
-          </li>
-        </ul>
-      </div>
-    </div>
-  );
-}
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          {/* Public Routes */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            
+            {/* Assessment is public for guest users */}
+            <Route path="/assessment" element={<AssessmentPage />} />
+          </Route>
 
-export default App;
+          {/* Admin Login (Public, but separate UI) */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+
+          {/* Admin/Expert Protected Routes - Require ADMIN or TRAINER role */}
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'TRAINER']} redirectTo="/admin/login" />}>
+            <Route path="/admin" element={<DashboardLayout />}>
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
+            </Route>
+          </Route>
+
+          {/* Client Protected Routes - Require authentication */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<PublicLayout />}>
+              <Route path="/booking" element={<BookingPage />} />
+              <Route path="/payment" element={<PaymentPage />} />
+            </Route>
+            
+            {/* Client Dashboard */}
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<ClientDashboard />} />
+            </Route>
+          </Route>
+
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};

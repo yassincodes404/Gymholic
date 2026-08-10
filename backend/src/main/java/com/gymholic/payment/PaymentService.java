@@ -1,6 +1,7 @@
 package com.gymholic.payment;
 
 import com.gymholic.booking.BookingRepository;
+import com.gymholic.booking.BookingService;
 import com.gymholic.booking.entity.Booking;
 import com.gymholic.common.enums.PaymentStatus;
 import com.gymholic.common.exception.BadRequestException;
@@ -9,6 +10,7 @@ import com.gymholic.payment.dto.CreatePaymentRequest;
 import com.gymholic.payment.dto.PaymentDto;
 import com.gymholic.payment.entity.Payment;
 import com.gymholic.payment.provider.PaymentProvider;
+import com.gymholic.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
+    private final BookingService bookingService;
+    private final NotificationService notificationService;
     private final List<PaymentProvider> paymentProviders;
 
     @Transactional
@@ -51,6 +55,15 @@ public class PaymentService {
             .build();
 
         Payment saved = paymentRepository.save(payment);
+
+        notificationService.sendBookingCreated(
+            booking.getClient().getEmail(),
+            booking.getClient().getFirstName(),
+            booking.getTrainer().getFirstName(),
+            booking.getStartTime().toString(),
+            saved.getProviderCheckoutUrl()
+        );
+
         return mapToDto(saved);
     }
 
@@ -67,6 +80,47 @@ public class PaymentService {
             .stream()
             .map(this::mapToDto)
             .toList();
+    }
+
+    @Transactional
+    public void handlePaymobWebhook(String payload, String hmac) {
+        PaymentProvider provider = paymentProviders.stream()
+            .filter(p -> p.getProviderName().equals("paymob"))
+            .findFirst()
+            .orElseThrow(() -> new BadRequestException("Paymob provider not found"));
+
+        Map<String, Object> result = provider.verifyWebhook(payload, hmac);
+        
+        String orderId = (String) result.get("orderId");
+        boolean success = (Boolean) result.get("success");
+        boolean pending = (Boolean) result.get("pending");
+
+        Payment payment = paymentRepository.findByProviderTransactionId(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("Payment", "orderId", orderId));
+
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            // Idempotency: Ignore if already completed
+            return;
+        }
+
+        if (success && !pending) {
+            payment.setStatus(PaymentStatus.COMPLETED);
+            paymentRepository.save(payment);
+            
+            notificationService.sendPaymentSuccessful(
+                payment.getBooking().getClient().getEmail(),
+                payment.getBooking().getClient().getFirstName(),
+                payment.getAmount().toString(),
+                payment.getCurrency(),
+                orderId
+            );
+
+            // Confirm booking
+            bookingService.confirmBooking(payment.getBooking().getId());
+        } else if (!pending) {
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+        }
     }
 
     private PaymentDto mapToDto(Payment payment) {

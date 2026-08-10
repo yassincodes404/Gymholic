@@ -9,7 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Slf4j
@@ -25,8 +26,8 @@ public class ReminderScheduler {
      */
     @Scheduled(cron = "0 0 * * * *")
     public void sendUpcomingSessionReminders() {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime in24Hours = now.plusHours(24);
+        Instant now = Instant.now();
+        Instant in24Hours = now.plus(24, ChronoUnit.HOURS);
 
         List<Booking> upcomingBookings = bookingRepository
             .findUpcomingByStatus(BookingStatus.CONFIRMED, now, in24Hours);

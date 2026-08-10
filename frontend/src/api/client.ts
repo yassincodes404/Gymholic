@@ -1,14 +1,16 @@
 import axios from 'axios';
 
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-apiClient.interceptors.request.use((config: any) => {
-  const token = localStorage.getItem('accessToken');
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('jwt_token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -16,15 +18,13 @@ apiClient.interceptors.request.use((config: any) => {
 });
 
 apiClient.interceptors.response.use(
-  (response: any) => response,
-  async (error: any) => {
-    const originalRequest = error.config;
-    // Handle 401 Unauthorized globally for token refresh (if implemented on frontend)
-    if (error.response?.status === 401 && !originalRequest._retry) {
-        // TODO: Handle token refresh logic
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('jwt_token');
+      // Redirect to login handled at router level
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
-
-export default apiClient;

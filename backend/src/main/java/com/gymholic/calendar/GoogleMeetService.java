@@ -13,7 +13,7 @@ public class GoogleMeetService {
 
     public String createMeetLink(String eventId) {
         log.info("Creating Google Meet link for event: {}", eventId);
-        // TODO: Implement Google Meet integration
-        return null;
+        // Fallback mock implementation until real credentials are provided
+        return "https://meet.google.com/mock-" + eventId.substring(0, 10);
     }
 }

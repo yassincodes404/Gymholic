@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CalendarEventDto {
-
     private String eventId;
     private String summary;
     private String description;

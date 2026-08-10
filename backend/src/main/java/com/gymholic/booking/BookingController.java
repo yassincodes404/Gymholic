@@ -2,6 +2,7 @@ package com.gymholic.booking;
 
 import com.gymholic.booking.dto.BookingDto;
 import com.gymholic.booking.dto.CreateBookingRequest;
+import com.gymholic.booking.dto.RescheduleBookingRequest;
 import com.gymholic.common.response.ApiResponse;
 import com.gymholic.security.SecurityUtils;
 import jakarta.validation.Valid;
@@ -63,5 +64,13 @@ public class BookingController {
         String reason = body != null ? body.get("reason") : null;
         BookingDto booking = bookingService.cancelBooking(id, reason);
         return ResponseEntity.ok(ApiResponse.success("Booking cancelled", booking));
+    }
+
+    @PutMapping("/{id}/reschedule")
+    public ResponseEntity<ApiResponse<BookingDto>> rescheduleBooking(
+            @PathVariable Long id,
+            @Valid @RequestBody RescheduleBookingRequest request) {
+        BookingDto booking = bookingService.rescheduleBooking(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Booking rescheduled", booking));
     }
 }

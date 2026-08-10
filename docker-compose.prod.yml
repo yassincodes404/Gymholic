@@ -82,12 +82,8 @@ services:
     image: ghcr.io/yassincodes404/gymholic-nginx:${IMAGE_TAG:-latest}
     container_name: gymholic-nginx
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
+    expose:
+      - "80"
     networks:
       - gymholic-net
     depends_on:
@@ -95,15 +91,12 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
-
-  # ---- Certbot (SSL Certificate Management) ----
-  certbot:
-    image: certbot/certbot:latest
-    container_name: gymholic-certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 volumes:
   postgres_data:

@@ -1,0 +1,3 @@
+.env
+letsencrypt/acme.json
+letsencrypt/backups/

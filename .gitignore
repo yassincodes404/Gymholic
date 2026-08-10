@@ -44,3 +44,8 @@ Desktop.ini
 docker-compose.override.yml
 postgres_data/
 redis_data/
+
+# ---- Infra runtime state ----
+infra/traefik/.env
+infra/traefik/letsencrypt/acme.json
+infra/traefik/letsencrypt/backups/

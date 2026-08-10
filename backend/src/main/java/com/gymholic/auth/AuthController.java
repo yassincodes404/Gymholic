@@ -1,6 +1,7 @@
 package com.gymholic.auth;
 
 import com.gymholic.auth.dto.AuthResponse;
+import com.gymholic.auth.dto.GoogleAuthRequest;
 import com.gymholic.auth.dto.LoginRequest;
 import com.gymholic.auth.dto.RegisterRequest;
 import com.gymholic.common.response.ApiResponse;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final GoogleSignInService googleSignInService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -32,6 +34,13 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @PostMapping("/google/signin")
+    public ResponseEntity<ApiResponse<AuthResponse>> googleSignIn(
+            @Valid @RequestBody GoogleAuthRequest request) {
+        AuthResponse response = googleSignInService.authenticateWithGoogle(request.getIdToken());
+        return ResponseEntity.ok(ApiResponse.success("Google sign-in successful", response));
     }
 
     @PostMapping("/refresh")

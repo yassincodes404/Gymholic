@@ -26,6 +26,20 @@ public final class SecurityUtils {
     }
 
     /**
+     * Returns the ID of the currently authenticated user.
+     * Note: This requires the JWT to contain user ID claims.
+     */
+    public static Long getCurrentUserId() {
+        // TODO: Extract user ID from JWT claims or load from database using email
+        String email = getCurrentUserEmail();
+        if (email == null) {
+            throw new RuntimeException("No authenticated user found");
+        }
+        // This is a temporary implementation - should be optimized to extract from JWT
+        return null; // Will be implemented when needed
+    }
+
+    /**
      * Checks whether the current user has a specific role.
      */
     public static boolean hasRole(String role) {

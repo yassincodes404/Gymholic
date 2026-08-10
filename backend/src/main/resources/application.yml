@@ -1,8 +1,27 @@
+app:
+  paymob:
+    api-key: ${PAYMOB_API_KEY:}
+    integration-id: ${PAYMOB_INTEGRATION_ID:}
+    iframe-id: ${PAYMOB_IFRAME_ID:}
+    hmac-secret: ${PAYMOB_HMAC_SECRET:}
+  encryption:
+    secret: ${ENCRYPTION_SECRET:fallback_secret_must_change_in_prod}
+  jwt:
+    secret: ${JWT_SECRET:default-secret-for-local-dev-only}
+    expiration-ms: 86400000 # 1 day
+    refresh-expiration-ms: 604800000 # 7 days
+  cors:
+    allowed-origins: ${FRONTEND_URL:http://localhost:5173}
+  mail:
+    from: ${MAIL_USERNAME:noreply@gymholic.com}
+
+google:
+  client:
+    id: ${GOOGLE_CLIENT_ID:}
+    secret: ${GOOGLE_CLIENT_SECRET:}
 spring:
   application:
     name: gymholic-backend
-  
-  # Default JPA settings (overridden by profiles)
   jpa:
     open-in-view: false
     hibernate:
@@ -31,18 +50,7 @@ server:
   error:
     include-message: always
 
-# JWT configuration (overridden by env vars)
-app:
-  jwt:
-    secret: ${JWT_SECRET:default-secret-for-local-dev-only}
-    expiration-ms: 86400000 # 1 day
-    refresh-expiration-ms: 604800000 # 7 days
-  
-  cors:
-    allowed-origins: ${FRONTEND_URL:http://localhost:5173}
-  
-  mail:
-    from: ${MAIL_USERNAME:noreply@gymholic.com}
+# Application configurations
 
 # Actuator endpoints
 management:

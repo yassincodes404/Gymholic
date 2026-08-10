@@ -7,6 +7,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -30,11 +31,38 @@ public class Booking {
     @JoinColumn(name = "trainer_id", nullable = false)
     private User trainer;
 
+    /**
+     * Absolute start time of the booking (UTC instant).
+     * This represents the exact moment the booking starts, unambiguous across timezones.
+     */
     @Column(name = "start_time", nullable = false)
-    private LocalDateTime startTime;
+    private Instant startTime;
 
+    /**
+     * Absolute end time of the booking (UTC instant).
+     */
     @Column(name = "end_time", nullable = false)
-    private LocalDateTime endTime;
+    private Instant endTime;
+
+    /**
+     * Expert/trainer's timezone at booking time (IANA timezone ID).
+     * Example: "Africa/Cairo", "Asia/Dubai"
+     */
+    @Column(name = "expert_timezone", length = 64)
+    private String expertTimezone;
+
+    /**
+     * Client's timezone at booking time (IANA timezone ID).
+     */
+    @Column(name = "client_timezone", length = 64)
+    private String clientTimezone;
+
+    /**
+     * Agreed meeting timezone (typically matches expert timezone).
+     * This satisfies the spec requirement: "booking record should contain meeting timezone"
+     */
+    @Column(name = "meeting_timezone", length = 64)
+    private String meetingTimezone;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -46,6 +74,12 @@ public class Booking {
 
     @Column(name = "meet_link")
     private String meetLink;
+
+    @Column(name = "external_event_id")
+    private String externalEventId;
+
+    @Column(name = "assessment_id")
+    private java.util.UUID assessmentId;
 
     @Column(name = "cancellation_reason")
     private String cancellationReason;

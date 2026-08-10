@@ -8,7 +8,10 @@ A fitness consultation booking platform — book sessions with trainers, manage 
                     Internet
                        │
                        ▼
-                    Nginx :80/:443
+                 Hostinger Traefik
+                   :80 / :443
+                       │
+                    Nginx :80
                        │
              ┌─────────┴─────────┐
              │                   │
@@ -25,7 +28,7 @@ A fitness consultation booking platform — book sessions with trainers, manage 
 **Frontend**: React · TypeScript · Vite  
 **Database**: PostgreSQL 16 · Flyway migrations  
 **Cache**: Redis 7  
-**Proxy**: Nginx  
+**Proxy**: Hostinger Traefik + Nginx  
 **CI/CD**: GitHub Actions → GHCR → Hostinger VPS
 
 ## Prerequisites
@@ -75,11 +78,15 @@ npm run dev
 ## Production Deployment
 
 Production uses Docker images from GHCR, deployed to Hostinger VPS via GitHub Actions.
+Public TLS termination is handled by Hostinger Traefik, while Gymholic Nginx stays internal on port `80`.
 
 ```bash
 # On the VPS
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+For Hostinger Traefik deployments, use the additional override described in [HOSTINGER_TRAEFIK_SETUP.md](HOSTINGER_TRAEFIK_SETUP.md).
+The shared Traefik reverse-proxy layer is version controlled in `infra/traefik`.
 
 ## Project Structure
 

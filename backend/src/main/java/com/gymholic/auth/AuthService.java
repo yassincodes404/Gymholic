@@ -38,7 +38,7 @@ public class AuthService {
             .lastName(request.getLastName())
             .email(request.getEmail())
             .password(passwordEncoder.encode(request.getPassword()))
-            .role(request.getRole() != null ? request.getRole() : Role.CLIENT)
+            .role(Role.CLIENT) // ALWAYS CLIENT for public registration
             .active(true)
             .build();
 

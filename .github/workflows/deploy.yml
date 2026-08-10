@@ -36,7 +36,7 @@ jobs:
           username: ${{ secrets.HOSTINGER_USERNAME }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
-          source: "docker-compose.prod.yml"
+          source: "docker-compose.prod.yml,docker-compose.prod.hostinger.yml"
           target: "~/gymholic"
 
       - name: Deploy to Hostinger via SSH
@@ -78,9 +78,14 @@ jobs:
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             fi
 
-            docker compose -f docker-compose.prod.yml --env-file .env.runtime pull
-            docker compose -f docker-compose.prod.yml --env-file .env.runtime up -d --remove-orphans
-            docker compose -f docker-compose.prod.yml --env-file .env.runtime ps
+            if ! docker network inspect traefik-proxy >/dev/null 2>&1; then
+              echo "Missing external Docker network 'traefik-proxy'. Deploy the Hostinger Traefik project first."
+              exit 1
+            fi
+
+            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime pull
+            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime ps
 
             for i in $(seq 1 20); do
               status="$(docker inspect --format='{{.State.Health.Status}}' gymholic-backend 2>/dev/null || true)"
@@ -89,11 +94,10 @@ jobs:
               fi
               if [ "$i" = "20" ]; then
                 echo "Backend did not become healthy. Current status: ${status:-unknown}"
-                docker compose -f docker-compose.prod.yml --env-file .env.runtime logs --tail=100 backend
+                docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime logs --tail=100 backend
                 exit 1
               fi
               sleep 5
             done
 
-            curl -fsS http://localhost/ >/dev/null
-            curl -fsS http://localhost/actuator/health >/dev/null
+            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime exec -T nginx sh -lc "wget -q --spider http://127.0.0.1/ && wget -q --spider http://127.0.0.1/actuator/health"

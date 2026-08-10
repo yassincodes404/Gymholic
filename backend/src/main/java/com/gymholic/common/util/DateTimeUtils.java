@@ -1,7 +1,9 @@
 package com.gymholic.common.util;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 public final class DateTimeUtils {
@@ -18,6 +20,11 @@ public final class DateTimeUtils {
 
     public static String formatForDisplay(LocalDateTime dateTime) {
         return dateTime.format(DISPLAY_FORMAT);
+    }
+
+    public static String formatForDisplay(Instant instant) {
+        ZonedDateTime zdt = instant.atZone(ZoneId.of("UTC"));
+        return zdt.format(DISPLAY_FORMAT.withZone(ZoneId.of("UTC")));
     }
 
     public static String formatISO(LocalDateTime dateTime) {

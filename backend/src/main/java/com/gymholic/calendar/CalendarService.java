@@ -9,9 +9,12 @@ import java.time.LocalDateTime;
  */
 public interface CalendarService {
 
-    CalendarEventDto createEvent(String summary, String description,
+    CalendarEventDto createEvent(Long trainerId, String summary, String description,
                                  LocalDateTime start, LocalDateTime end,
                                  String attendeeEmail);
 
-    void deleteEvent(String eventId);
+    void updateEvent(Long trainerId, String eventId, String summary, String description,
+                     LocalDateTime start, LocalDateTime end);
+
+    void deleteEvent(Long trainerId, String eventId);
 }

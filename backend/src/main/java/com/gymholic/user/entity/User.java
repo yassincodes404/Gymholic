@@ -7,6 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "users")
@@ -23,6 +24,9 @@ public class User {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    @Column(name = "google_id", unique = true)
+    private String googleId;
 
     @Column(nullable = false)
     private String password;
@@ -45,6 +49,19 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
+    /**
+     * User's timezone (IANA timezone ID).
+     * Examples: "Africa/Cairo", "Asia/Dubai", "America/New_York"
+     * 
+     * Used to:
+     * - Interpret expert availability in their local timezone
+     * - Display booking times in user's local timezone
+     * - Generate correct Google Calendar events
+     */
+    @Builder.Default
+    @Column(nullable = false, length = 64)
+    private String timezone = "UTC";
+
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
@@ -56,4 +73,14 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * Helper method to get ZoneId from timezone string.
+     * 
+     * @return ZoneId representation of the user's timezone
+     * @throws java.time.DateTimeException if timezone is invalid
+     */
+    public ZoneId getZoneId() {
+        return ZoneId.of(timezone);
+    }
 }

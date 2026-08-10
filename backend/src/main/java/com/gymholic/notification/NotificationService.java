@@ -13,8 +13,36 @@ public class NotificationService {
 
     private final EmailService emailService;
 
+    public void sendBookingCreated(String toEmail, String clientName,
+                                   String trainerName, String dateTime, String paymentUrl) {
+        emailService.sendEmail(
+            toEmail,
+            "Action Required: Complete Your Booking Payment — Gymholic",
+            "booking-created",
+            Map.of(
+                "clientName", clientName,
+                "trainerName", trainerName,
+                "dateTime", dateTime,
+                "paymentUrl", paymentUrl != null ? paymentUrl : ""
+            ));
+    }
+
+    public void sendPaymentSuccessful(String toEmail, String clientName,
+                                      String amount, String currency, String orderId) {
+        emailService.sendEmail(
+            toEmail,
+            "Payment Successful — Gymholic",
+            "payment-successful",
+            Map.of(
+                "clientName", clientName,
+                "amount", amount,
+                "currency", currency,
+                "orderId", orderId
+            ));
+    }
+
     public void sendBookingConfirmation(String toEmail, String clientName,
-                                         String trainerName, String dateTime) {
+                                         String trainerName, String dateTime, String duration, String meetLink) {
         emailService.sendEmail(
             toEmail,
             "Booking Confirmed — Gymholic",
@@ -22,7 +50,24 @@ public class NotificationService {
             Map.of(
                 "clientName", clientName,
                 "trainerName", trainerName,
-                "dateTime", dateTime
+                "dateTime", dateTime,
+                "duration", duration,
+                "meetLink", meetLink != null ? meetLink : ""
+            ));
+    }
+
+    public void sendBookingRescheduled(String toEmail, String clientName,
+                                       String trainerName, String oldDateTime, String newDateTime, String meetLink) {
+        emailService.sendEmail(
+            toEmail,
+            "Booking Rescheduled — Gymholic",
+            "booking-rescheduled",
+            Map.of(
+                "clientName", clientName,
+                "trainerName", trainerName,
+                "oldDateTime", oldDateTime,
+                "newDateTime", newDateTime,
+                "meetLink", meetLink != null ? meetLink : ""
             ));
     }
 

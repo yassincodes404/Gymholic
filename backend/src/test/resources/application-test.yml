@@ -1,3 +1,7 @@
+app:
+  encryption:
+    secret: test_encryption_secret_123
+
 spring:
   datasource:
     url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
@@ -17,6 +21,8 @@ spring:
   mail:
     host: localhost
     port: 1025
+    username: test
+    password: test
 
   data:
     redis:
