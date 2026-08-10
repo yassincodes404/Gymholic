@@ -23,28 +23,34 @@ if [ ! -e "$data_path/conf/options-ssl-nginx.conf" ] || [ ! -e "$data_path/conf/
   curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem > "$data_path/conf/ssl-dhparams.pem"
 fi
 
-# Create dummy certificate for nginx to start
-echo "### Creating dummy certificate for $domains..."
-path="/etc/letsencrypt/live/$domains"
-mkdir -p "$data_path/conf/live/$domains"
-docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
-  openssl req -x509 -nodes -newkey rsa:$rsa_key_size -days 1\
-    -keyout '$path/privkey.pem' \
-    -out '$path/fullchain.pem' \
-    -subj '/CN=localhost'" certbot
-echo
+# Temporarily use HTTP-only nginx config
+echo "### Switching to HTTP-only nginx config temporarily..."
+if [ -f "nginx/default.conf.backup" ]; then
+  echo "Backup already exists"
+else
+  cp nginx/default.conf nginx/default.conf.backup
+  cp nginx/default-http-only.conf nginx/default.conf
+  echo "Switched to HTTP-only config"
+fi
 
-# Start nginx with dummy certificate
-echo "### Starting nginx..."
-docker compose -f docker-compose.prod.yml up --force-recreate -d nginx
-echo
+# Rebuild nginx image with HTTP-only config
+echo "### Building HTTP-only nginx image..."
+docker build -t gymholic-nginx-temp:latest nginx/
 
-# Delete dummy certificate
-echo "### Deleting dummy certificate..."
-docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
-  rm -rf /etc/letsencrypt/live/$domains && \
-  rm -rf /etc/letsencrypt/archive/$domains && \
-  rm -rf /etc/letsencrypt/renewal/$domains.conf" certbot
+# Start nginx with HTTP-only config
+echo "### Starting nginx with HTTP-only config..."
+docker compose -f docker-compose.prod.yml stop nginx 2>/dev/null || true
+docker rm gymholic-nginx 2>/dev/null || true
+docker run -d \
+  --name gymholic-nginx \
+  --network gymholic_gymholic-net \
+  -p 80:80 \
+  -p 443:443 \
+  -v "$(pwd)/certbot/www:/var/www/certbot:ro" \
+  gymholic-nginx-temp:latest
+
+echo "### Waiting for nginx to start..."
+sleep 5
 echo
 
 # Request real certificate
@@ -74,7 +80,23 @@ docker compose -f docker-compose.prod.yml run --rm --entrypoint "\
 echo
 
 # Reload nginx
-echo "### Reloading nginx..."
-docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+echo "### Stopping temporary nginx and starting full stack with HTTPS..."
+docker stop gymholic-nginx
+docker rm gymholic-nginx
+
+# Restore full nginx config with HTTPS
+if [ -f "nginx/default.conf.backup" ]; then
+  mv nginx/default.conf.backup nginx/default.conf
+  echo "Restored HTTPS nginx config"
+fi
+
+# Rebuild nginx with HTTPS config
+docker build -t ghcr.io/yassincodes404/gymholic-nginx:latest nginx/
+
+# Start full stack with HTTPS
+docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
 
 echo "### Certificate installation complete!"
+echo "### Testing HTTPS..."
+sleep 5
+curl -skI https://localhost/ | head -5 || echo "HTTPS test failed - check nginx logs"
