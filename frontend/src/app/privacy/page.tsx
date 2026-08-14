@@ -1,8 +1,4 @@
-/*!
-  GymHolic Privacy Policy
-  — Used for Google Cloud OAuth verification and public site compliance.
-  This page is publicly accessible without authentication.
-*/
+/*!  GymHolic Privacy Policy — Used for Google Cloud OAuth verification and public site compliance. This page is publicly accessible without authentication. */
 
 import Layout from "@/app/layout";
 
@@ -13,26 +9,21 @@ export default function PrivacyPage() {
         <h1 className="text-3xl font-bold tracking-tight mb-6">
           Privacy Policy
         </h1>
-
         <p className="mb-6">
           Last updated: August 14, 2026
         </p>
-
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
             GymHolic and Google Services
           </h2>
-
           <p className="mb-6">
             GymHolic provides gym consulting and booking services. As part of our
             service, we offer experts the ability to connect their Google Calendar
             to streamline consultation scheduling and booking management.
           </p>
-
           <h3 className="text-xl font-medium mb-3">
             Google API Access
           </h3>
-
           <ul className="list-disc list-inside mb-6 space-y-2">
             <li>
               GymHolic uses Google Calendar API to create and manage consultation
@@ -51,11 +42,9 @@ export default function PrivacyPage() {
               backend is stored separately from Google Calendar data.
             </li>
           </ul>
-
           <h3 className="text-xl font-medium mb-3">
             Data Storage and Protection
           </h3>
-
           <ul className="list-disc list-inside mb-6 space-y-2">
             <li>
               Google refresh tokens obtained via OAuth are stored encrypted in
@@ -75,11 +64,9 @@ export default function PrivacyPage() {
               token rotation as recommended by Google.
             </li>
           </ul>
-
           <h3 className="text-xl font-medium mb-3">
             User Controls
           </h3>
-
           <ul className="list-disc list-inside mb-6 space-y-2">
             <li>
               Experts can disconnect their Google Calendar at any time from the
@@ -96,17 +83,14 @@ export default function PrivacyPage() {
             </li>
           </ul>
         </section>
-
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
             Third-Party Services
           </h2>
-
           <p className="mb-6">
             GymHolic incorporates the following third-party services that may
             process data:
           </p>
-
           <ul className="list-disc list-inside mb-6 space-y-2">
             <li>
               <strong>Google Calendar API:</strong> For creating and managing
@@ -129,12 +113,10 @@ export default function PrivacyPage() {
             </li>
           </ul>
         </section>
-
         <section>
           <h2 className="text-2xl font-semibold mb-4">
             Contact
           </h2>
-
           <p className="mb-6">
             If you have questions about this Privacy Policy or data practices,
             contact us at the support email listed on the GymHolic website.
