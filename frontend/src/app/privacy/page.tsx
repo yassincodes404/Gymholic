@@ -1,8 +1,5 @@
-/*!
-  GymHolic Privacy Policy
-  — Used for Google Cloud OAuth verification and public site compliance.
-  This page is publicly accessible without authentication.
-*/
+/* eslint react/no-unescaped-entities: off */
+/*!  GymHolic Privacy Policy — Used for Google Cloud OAuth verification and public site compliance. This page is publicly accessible without authentication. */
 
 import Layout from "@/app/layout";
 
