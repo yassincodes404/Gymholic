@@ -1,4 +1,8 @@
-/*!  GymHolic Privacy Policy — Used for Google Cloud OAuth verification and public site compliance. This page is publicly accessible without authentication. */
+/*!
+  GymHolic Privacy Policy
+  — Used for Google Cloud OAuth verification and public site compliance.
+  This page is publicly accessible without authentication.
+*/
 
 import Layout from "@/app/layout";
 
