@@ -21,8 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Tests for admin/expert authentication.
- * Validates that only ADMIN/TRAINER can access admin endpoints.
+ * Tests for admin authentication.
+ * Validates that only ADMIN users can access admin login.
  * CLIENT users are rejected from admin login.
  */
 @SpringBootTest
@@ -106,7 +106,7 @@ class AdminAuthTest {
     }
 
     @Test
-    void adminLogin_WithValidTrainerCredentials_ShouldSucceed() throws Exception {
+    void adminLogin_WithValidTrainerCredentials_ShouldBeRejected() throws Exception {
         LoginRequest request = new LoginRequest();
         request.setEmail(TRAINER_EMAIL);
         request.setPassword(PASSWORD);
@@ -114,11 +114,9 @@ class AdminAuthTest {
         mockMvc.perform(post("/api/admin/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.email").value(TRAINER_EMAIL))
-                .andExpect(jsonPath("$.data.role").value("TRAINER"))
-                .andExpect(jsonPath("$.data.accessToken").exists());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Access denied. Admin privileges required."));
     }
 
     @Test
@@ -132,7 +130,7 @@ class AdminAuthTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Access denied. Admin/Trainer privileges required."));
+                .andExpect(jsonPath("$.message").value("Access denied. Admin privileges required."));
     }
 
     @Test

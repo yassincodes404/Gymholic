@@ -10,9 +10,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Admin/Expert authentication controller.
+ * Admin authentication controller.
  * Separate from public client authentication.
- * Only ADMIN and TRAINER roles can authenticate here.
+ * Only ADMIN users can authenticate here.
  */
 @RestController
 @RequestMapping("/api/admin/auth")

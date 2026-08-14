@@ -16,9 +16,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
 
 /**
- * Admin/Expert authentication service.
- * Only allows ADMIN and TRAINER roles to authenticate.
- * CLIENT users are rejected.
+ * Admin authentication service.
+ * Only allows ADMIN users to authenticate through the admin portal.
  */
 @Slf4j
 @Service
@@ -43,10 +42,9 @@ public class AdminAuthService {
         User user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new BadRequestException("User not found"));
 
-        // Only ADMIN and TRAINER can access admin area
-        if (user.getRole() != Role.ADMIN && user.getRole() != Role.TRAINER) {
-            log.warn("CLIENT user attempted admin login: {}", request.getEmail());
-            throw new BadRequestException("Access denied. Admin/Trainer privileges required.");
+        if (user.getRole() != Role.ADMIN) {
+            log.warn("Non-admin user attempted admin login: {}", request.getEmail());
+            throw new BadRequestException("Access denied. Admin privileges required.");
         }
 
         log.info("Admin login successful for {} with role {}", request.getEmail(), user.getRole());

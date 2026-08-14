@@ -58,8 +58,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments/*/submit").permitAll() // Submit assessment
                 .requestMatchers(HttpMethod.GET, "/api/v1/assessments/*").permitAll() // Get specific assessment
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                // Admin endpoints require ADMIN or TRAINER role
-                .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "TRAINER")
+                // Admin endpoints require ADMIN role
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
@@ -75,4 +75,3 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 }
-

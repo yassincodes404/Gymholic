@@ -1,42 +1,46 @@
-# ================================================
-# Gymholic Frontend — Multi-stage Docker Build
-# ================================================
+FROM node:20-alpine AS deps
 
-# ---- Stage 1: Build ----
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
 FROM node:20-alpine AS build
 
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy package files and install dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci || npm install
-
-# Copy source and build
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 RUN npm run build
 
-# ---- Stage 2: Serve (Production) ----
-FROM nginx:alpine AS prod
+FROM node:20-alpine AS prod
 
-# Copy built assets to Nginx html directory
-COPY --from=build /app/dist /usr/share/nginx/html
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/public ./public
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
 
-EXPOSE 80
+EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.js"]
 
-# ---- Stage 3: Development Server ----
 FROM node:20-alpine AS dev
 
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+RUN npm ci
 
 COPY . .
 
-EXPOSE 5173
+EXPOSE 3000
 
-CMD ["npm", "run", "dev", "--", "--host"]
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]

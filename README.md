@@ -25,7 +25,7 @@ A fitness consultation booking platform — book sessions with trainers, manage 
 ```
 
 **Backend**: Spring Boot 3.3 · Java 21 · Modular monolith  
-**Frontend**: React · TypeScript · Vite  
+**Frontend**: React · TypeScript · Next.js  
 **Database**: PostgreSQL 16 · Flyway migrations  
 **Cache**: Redis 7  
 **Proxy**: Hostinger Traefik + Nginx  
@@ -55,7 +55,7 @@ cp .env.example .env
 docker compose up
 
 # 4. Access the application
-# Frontend:  http://localhost:5173
+# Frontend:  http://localhost:3000
 # Backend:   http://localhost:8080
 # Swagger:   http://localhost:8080/swagger-ui.html
 # Postgres:  localhost:5433
@@ -93,7 +93,7 @@ The shared Traefik reverse-proxy layer is version controlled in `infra/traefik`.
 ```
 Gymholic/
 ├── backend/          # Spring Boot API
-├── frontend/         # React + Vite
+├── frontend/         # React + Next.js
 ├── nginx/            # Reverse proxy
 ├── .github/          # CI/CD workflows
 ├── docker-compose.yml        # Local dev

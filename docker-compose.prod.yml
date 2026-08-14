@@ -74,6 +74,8 @@ services:
     image: ghcr.io/yassincodes404/gymholic-frontend:${IMAGE_TAG:-latest}
     container_name: gymholic-frontend
     restart: unless-stopped
+    expose:
+      - "3000"
     networks:
       - gymholic-net
 

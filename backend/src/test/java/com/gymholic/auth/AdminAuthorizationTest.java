@@ -22,8 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.springframework.http.MediaType;
 
 /**
- * Tests for role-based authorization on admin endpoints.
- * Validates that /api/admin/** requires ADMIN or TRAINER role.
+ * Tests for role-based authorization on expert endpoints.
+ * Validates that expert profile endpoints allow ADMIN/TRAINER and reject CLIENT users.
  */
 @SpringBootTest
 @ActiveProfiles("test")

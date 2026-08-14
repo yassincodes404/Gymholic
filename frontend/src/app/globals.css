@@ -1,0 +1,404 @@
+@import "tailwindcss";
+
+:root {
+  /* Gymholic v2 brand system — cream/black two-tone, single ember accent
+     (Orange Law: max ~4% of any viewport's pixel area). Values are locked
+     to the brief; the components consuming them are new. */
+  /* Pure black — sampled directly from the hero video's background
+     (#000000), not an approximation. #111111 read as a visibly different,
+     lighter shade next to the video and created a seam. */
+  --void: #000000;
+  --surface: #1a1a1a;
+  --paper: #f5f1e8;
+  --paper-dim: #eae4d4;
+  --ink: #111111;
+  --orange: #ff6a00;
+  --orange-dim: rgba(255, 106, 0, 0.16);
+
+  --background: var(--void);
+  --foreground: var(--paper);
+
+  /* Aeonik has no legitimate free license — General Sans is the standard
+     free substitute (same geometric neo-grotesk family) and now drives
+     both display and body type as one unified system. */
+  --font-display: "General Sans", sans-serif;
+  --font-body: "General Sans", sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-void: var(--void);
+  --color-surface: var(--surface);
+  --color-paper: var(--paper);
+  --color-paper-dim: var(--paper-dim);
+  --color-ink: var(--ink);
+  --color-orange: var(--orange);
+  --color-orange-dim: var(--orange-dim);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: auto;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--void);
+  color: var(--paper);
+  font-family: var(--font-body, "General Sans", sans-serif);
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+.display-text {
+  font-family: var(--font-display, "General Sans", sans-serif);
+  letter-spacing: -0.01em;
+}
+
+/* ---- Optical typography (Apple Design skill §15): large display text
+   wants noticeably negative tracking + tight leading; body/small text
+   stays near 0. Reserved for the biggest headline moments on the site —
+   not applied blanket, since most headings are mid-size. ---- */
+.display-hero {
+  letter-spacing: -0.035em;
+  line-height: 0.95;
+  font-weight: 700;
+}
+
+/* ---- Section theme primitives ----
+   Black is the site's background everywhere; cream is reserved for text and
+   small accents (never a large background fill). "section-light" is kept as
+   a class name so components don't need renaming, but it now renders the
+   same black background as section-dark — only the text emphasis differs. */
+.section-dark {
+  background: var(--void);
+  color: var(--paper);
+}
+
+.section-light {
+  background: var(--void);
+  color: var(--paper);
+}
+
+/* ---- Solid ember pill CTA (new visual language, replaces bracket-corner) ---- */
+.btn-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 2rem;
+  background: var(--orange);
+  color: var(--void);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  will-change: transform;
+}
+
+/* ---- Translucent header material (Apple Design skill §12): nav floats as
+   a blurred layer with content scrolling underneath, instead of an opaque
+   bar or plain transparent overlay. ---- */
+.header-material {
+  background: rgba(17, 17, 17, 0.55);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom: 1px solid rgba(245, 241, 232, 0.08);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .header-material {
+    background: var(--void);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Touch-device fallback: MagneticButton's JS press feedback only attaches
+   on hover-capable pointers, so touch relies on this instant CSS :active
+   (Apple Design skill §1 — feedback on pointer-down, not release). */
+@media (hover: none) {
+  .btn-pill:active {
+    transform: scale(0.94);
+    transition: transform 0.1s ease-out;
+  }
+}
+
+.btn-pill--ghost {
+  background: transparent;
+  color: var(--orange);
+  border: 1.5px solid var(--orange);
+}
+
+/* ---- Flip-morph service card (new, replaces spotlight hover) ---- */
+.service-card {
+  position: relative;
+  border-radius: 20px;
+  padding: 1.75rem;
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.service-card--dark {
+  background: var(--surface);
+  color: var(--paper);
+}
+
+.service-card--light {
+  background: rgba(245, 241, 232, 0.06);
+  color: var(--paper);
+}
+
+/* ---- Crazy 3D tilt hover: cursor-tracked glare sweep + depth shadow,
+   paired with the useTilt hook's rotateX/rotateY/scale/z. The glow
+   position is driven by --mx/--my (set on mousemove); opacity by
+   --glare-opacity (toggled on enter/leave). Every card on the site uses
+   this. ---- */
+.tilt-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(
+    500px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.22),
+    rgba(255, 106, 0, 0.12) 35%,
+    transparent 65%
+  );
+  mix-blend-mode: screen;
+  opacity: var(--glare-opacity, 0);
+  transition: opacity 0.3s ease;
+}
+
+.tilt-shadow {
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  transition: box-shadow 0.4s ease;
+}
+
+.tilt-shadow[data-tilting="true"] {
+  box-shadow: 0 30px 60px -15px rgba(255, 106, 0, 0.25), 0 20px 40px -20px rgba(0, 0, 0, 0.5);
+}
+
+.service-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--void);
+  color: var(--paper);
+  overflow-y: auto;
+}
+
+/* ---- Marquee (new footer/differentiators mechanic — plain infinite loop) ---- */
+.marquee-row {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 26s linear infinite;
+}
+
+.marquee-row:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-wordmark {
+  font-family: var(--font-display, "Clash Display", sans-serif);
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--orange);
+  line-height: 0.85;
+  white-space: nowrap;
+}
+
+/* ---- FAQ: sliding ember rule-line indicator (new, replaces grid-rows accordion chrome) ---- */
+.faq-row {
+  position: relative;
+  border-bottom: 1px solid var(--orange-dim);
+}
+
+.faq-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  height: 2px;
+  width: 0%;
+  background: var(--orange);
+  transition: width 0.4s ease;
+}
+
+.faq-row[data-open="true"]::before {
+  width: 100%;
+}
+
+.faq-answer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s ease;
+}
+
+.faq-row[data-open="true"] .faq-answer {
+  grid-template-rows: 1fr;
+}
+
+.faq-answer > div {
+  overflow: hidden;
+}
+
+/* ---- Audience tab crossfade ---- */
+@keyframes audience-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.audience-crossfade {
+  animation: audience-fade-in 0.35s ease both;
+}
+
+/* ---- Horizontal snap scrollers (audience strip, case studies) ---- */
+.snap-row {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.snap-row::-webkit-scrollbar {
+  display: none;
+}
+
+.snap-item {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ---- Hero video: large, bleeding off the right edge ----
+   object-fit: contain (not cover) so the video shrinks to fit the box
+   instead of stretching/cropping — but the box itself is now large and
+   flush to the edge, closer in scale to a reference like Visify's hero
+   illustration, not a small inset thumbnail. Desktop box uses the real
+   source aspect ratio (4:3 — the "16x9" file is natively 2224x1668, not
+   actually 16:9) so contain doesn't letterbox unnecessarily. */
+.hero-video-wrap {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-46%);
+  width: min(70vw, 1600px);
+  aspect-ratio: 4 / 3;
+  z-index: 1;
+  /* No mask/fade here: --void is now sampled pixel-for-pixel from the
+     video's own background (#000000), so the two meet with no seam to
+     hide — masking or dimming the video was only ever a band-aid for the
+     color mismatch, not needed once the colors actually match. */
+}
+
+.hero-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .hero-video-wrap {
+    position: static;
+    transform: none;
+    width: min(92vw, 560px);
+    /* Real source aspect ratio (992x1728) — not exactly 9:16 — so contain
+       doesn't letterbox. */
+    aspect-ratio: 992 / 1728;
+    margin: 32px auto 0;
+  }
+}
+
+/* ---- Academy coming-soon status pulse ---- */
+.coming-soon-pulse {
+  animation: coming-soon-ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes coming-soon-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  75%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ---- Blueprint product card: subtle interaction only ----
+   Deliberately restrained (per the brief) — a small lift, a border/cover
+   brighten, and the arrow nudging right. No tilt, no glare, no scale. */
+.blueprint-card {
+  transition: transform 0.25s ease;
+}
+
+.blueprint-card:hover {
+  transform: translateY(-4px);
+}
+
+.blueprint-card:hover .display-text:first-of-type,
+.blueprint-card > div:first-child {
+  transition: border-color 0.25s ease;
+}
+
+.blueprint-card:hover > div:first-child {
+  border-color: rgba(255, 106, 0, 0.5) !important;
+}
+
+.blueprint-add-arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.blueprint-add-btn:hover .blueprint-add-arrow {
+  transform: translateX(3px);
+}
+
+/* ---- Shared form field focus state (checkout, booking details, payment) ---- */
+.field-input:focus {
+  border-color: var(--orange) !important;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-row {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
