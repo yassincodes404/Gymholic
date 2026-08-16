@@ -53,6 +53,10 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/payments/webhook/**").permitAll()
                 .requestMatchers("/api/integrations/google/callback").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/whitelist").permitAll() // Join waitlist (guest-friendly)
+                .requestMatchers(HttpMethod.GET, "/api/settings/pricing").permitAll() // Public booking prices
+                .requestMatchers(HttpMethod.GET, "/api/payments/active-provider").permitAll() // Which gateway checkout uses
+                .requestMatchers("/api/bookings/reschedule/**").permitAll() // One-time no-show reschedule links (token-protected)
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments").permitAll() // Start assessment
                 .requestMatchers(HttpMethod.PUT, "/api/v1/assessments/*").permitAll() // Update assessment
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments/*/submit").permitAll() // Submit assessment

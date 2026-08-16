@@ -26,6 +26,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
+    private final AdminBootstrapService adminBootstrapService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -60,6 +61,8 @@ public class AuthService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
         User user = userRepository.findByEmail(request.getEmail())
             .orElseThrow();
+
+        adminBootstrapService.promoteIfBootstrapEmail(user.getEmail());
 
         String accessToken = jwtService.generateToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);

@@ -8,6 +8,7 @@ import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
 import com.gymholic.payment.dto.CreatePaymentRequest;
 import com.gymholic.payment.dto.PaymentDto;
+import com.gymholic.payment.dto.PaymentHistoryDto;
 import com.gymholic.payment.entity.Payment;
 import com.gymholic.payment.provider.PaymentProvider;
 import com.gymholic.notification.NotificationService;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +29,7 @@ public class PaymentService {
     private final BookingService bookingService;
     private final NotificationService notificationService;
     private final List<PaymentProvider> paymentProviders;
+    private final com.gymholic.payment.provider.PaymentProviderConfigService providerConfigService;
 
     @Transactional
     public PaymentDto createPayment(CreatePaymentRequest request) {
@@ -38,16 +41,30 @@ public class PaymentService {
             .findFirst()
             .orElseThrow(() -> new BadRequestException("Unknown payment provider: " + request.getProvider()));
 
+        if ("paymob".equals(request.getProvider()) && !providerConfigService.isPaymobActive()) {
+            throw new BadRequestException(
+                "Paymob is not enabled. Configure and enable it under Admin → Integrations.");
+        }
+
+        // The amount is resolved server-side from the admin-managed settings,
+        // so a tampered client request can never choose its own price.
+        String[] resolved = bookingService.resolveBookingPrice(booking.getNotes());
+        BigDecimal amount = new BigDecimal(resolved[0]);
+        String currency = resolved[1];
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("This booking is a free open consultation and does not require payment.");
+        }
+
         Map<String, String> checkout = provider.createCheckout(
-            request.getAmount(),
-            request.getCurrency(),
+            amount,
+            currency,
             "Booking #" + booking.getId(),
             Map.of("bookingId", booking.getId().toString()));
 
         Payment payment = Payment.builder()
             .booking(booking)
-            .amount(request.getAmount())
-            .currency(request.getCurrency())
+            .amount(amount)
+            .currency(currency)
             .status(PaymentStatus.PENDING)
             .providerName(provider.getProviderName())
             .providerTransactionId(checkout.get("transactionId"))
@@ -121,6 +138,61 @@ public class PaymentService {
             payment.setStatus(PaymentStatus.FAILED);
             paymentRepository.save(payment);
         }
+    }
+
+    /**
+     * Dev/test-only path: marks a mock payment as COMPLETED and runs the same
+     * downstream chain as a successful real webhook (payment email + booking
+     * confirmation -> Google Calendar event, Meet link, confirmation email).
+     */
+    @Transactional
+    public PaymentDto completeMockPayment(Long paymentId, String currentUserEmail, boolean isAdmin) {
+        Payment payment = paymentRepository.findById(paymentId)
+            .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", paymentId));
+
+        Booking booking = payment.getBooking();
+        if (!isAdmin && !booking.getClient().getEmail().equalsIgnoreCase(currentUserEmail)) {
+            throw new BadRequestException("You can only complete payments for your own bookings.");
+        }
+        if (!"mock".equals(payment.getProviderName())) {
+            throw new BadRequestException("Only mock payments can be completed via the test endpoint.");
+        }
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            // Idempotency: ignore if already completed
+            return mapToDto(payment);
+        }
+
+        payment.setStatus(PaymentStatus.COMPLETED);
+        paymentRepository.save(payment);
+
+        notificationService.sendPaymentSuccessful(
+            booking.getClient().getEmail(),
+            booking.getClient().getFirstName(),
+            payment.getAmount().toString(),
+            payment.getCurrency(),
+            payment.getProviderTransactionId()
+        );
+
+        bookingService.confirmBooking(booking.getId());
+        return mapToDto(payment);
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<PaymentHistoryDto> getMyPayments(Long userId) {
+        return paymentRepository.findByBookingClientId(userId).stream()
+            .map(p -> PaymentHistoryDto.builder()
+                .id(p.getId())
+                .bookingId(p.getBooking().getId())
+                .amount(p.getAmount())
+                .currency(p.getCurrency())
+                .status(p.getStatus().name())
+                .providerName(p.getProviderName())
+                .description("Consultation booking #" + p.getBooking().getId())
+                .bookingStartTime(p.getBooking().getStartTime())
+                .createdAt(p.getCreatedAt())
+                .build())
+            .toList();
     }
 
     private PaymentDto mapToDto(Payment payment) {

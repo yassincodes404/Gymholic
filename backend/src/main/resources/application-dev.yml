@@ -31,3 +31,8 @@ logging:
     com.gymholic: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web: DEBUG
+
+# Dev-only mock payment provider (no real charges; completes via test endpoint)
+app:
+  payments:
+    mock-enabled: true

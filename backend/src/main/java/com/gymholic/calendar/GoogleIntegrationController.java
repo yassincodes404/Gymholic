@@ -6,6 +6,7 @@ import com.gymholic.security.SecurityUtils;
 import com.gymholic.user.entity.User;
 import com.gymholic.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -38,10 +39,25 @@ public class GoogleIntegrationController {
         return ResponseEntity.ok(ApiResponse.success("Authorization URL generated", Map.of("url", authUrl)));
     }
 
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    private String frontendUrl;
+
     @GetMapping("/callback")
-    public ResponseEntity<ApiResponse<String>> oauthCallback(@RequestParam("code") String code, @RequestParam("state") String state) {
-        oAuthService.exchangeCodeForToken(code, state);
-        return ResponseEntity.ok(ApiResponse.success("Google Calendar connected successfully", null));
+    public ResponseEntity<Void> oauthCallback(@RequestParam("code") String code, @RequestParam("state") String state) {
+        String redirectBase = frontendUrl + "/admin/integrations";
+        try {
+            oAuthService.exchangeCodeForToken(code, state);
+            // Browser-facing endpoint: land the user back on the admin integrations page.
+            return ResponseEntity.status(302)
+                .header("Location", redirectBase + "?google=connected")
+                .build();
+        } catch (Exception e) {
+            String message = java.net.URLEncoder.encode(e.getMessage() == null ? "unknown error" : e.getMessage(),
+                java.nio.charset.StandardCharsets.UTF_8);
+            return ResponseEntity.status(302)
+                .header("Location", redirectBase + "?google=error&message=" + message)
+                .build();
+        }
     }
 
     @GetMapping("/status")

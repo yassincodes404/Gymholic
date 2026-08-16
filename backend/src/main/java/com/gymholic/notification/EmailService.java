@@ -42,7 +42,8 @@ public class EmailService {
 
             mailSender.send(message);
             log.info("Email sent to {} with subject: {}", to, subject);
-        } catch (MessagingException e) {
+        } catch (Exception e) {
+            // Never let email problems roll back booking/payment transactions.
             log.error("Failed to send email to {}: {}", to, e.getMessage());
         }
     }

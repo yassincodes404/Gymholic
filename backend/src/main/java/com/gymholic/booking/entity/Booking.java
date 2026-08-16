@@ -84,6 +84,28 @@ public class Booking {
     @Column(name = "cancellation_reason")
     private String cancellationReason;
 
+    /**
+     * One-time token emailed to the client after a no-show, letting them
+     * pick a new time from /reschedule?token=... without signing in.
+     */
+    @Column(name = "reschedule_token", length = 64)
+    private String rescheduleToken;
+
+    @Column(name = "reschedule_expires_at")
+    private Instant rescheduleExpiresAt;
+
+    @Column(name = "no_show_note", columnDefinition = "TEXT")
+    private String noShowNote;
+
+    /** Whether the expert joined the missed session (recorded at no-show marking). */
+    @Column(name = "expert_attended")
+    private Boolean expertAttended;
+
+    /** How many times this booking has been moved to a new time. */
+    @Builder.Default
+    @Column(name = "reschedule_count", nullable = false)
+    private int rescheduleCount = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

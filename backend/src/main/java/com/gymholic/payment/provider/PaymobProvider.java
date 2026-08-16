@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gymholic.common.exception.BadRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,17 +27,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PaymobProvider implements PaymentProvider {
 
-    @Value("${app.paymob.api-key}")
-    private String apiKey;
-
-    @Value("${app.paymob.integration-id}")
-    private String integrationId;
-
-    @Value("${app.paymob.iframe-id}")
-    private String iframeId;
-
-    @Value("${app.paymob.hmac-secret}")
-    private String hmacSecret;
+    /**
+     * Credentials come from Admin → Integrations (settings table) with the
+     * PAYMOB_* environment variables as fallback — resolved per call so a
+     * config saved from the admin UI takes effect immediately.
+     */
+    private final PaymentProviderConfigService configService;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -50,35 +44,58 @@ public class PaymobProvider implements PaymentProvider {
         return "paymob";
     }
 
+    /** Verifies the configured API key by requesting an auth token from Paymob. */
+    public void testConnection() {
+        PaymentProviderConfigService.PaymobCredentials credentials = requireCredentials();
+        String url = PAYMOB_API_BASE + "/auth/tokens";
+        ResponseEntity<JsonNode> response = restTemplate.postForEntity(url, Map.of("api_key", credentials.apiKey()), JsonNode.class);
+        if (response.getBody() == null || !response.getBody().has("token")) {
+            throw new RuntimeException("Paymob rejected the API key");
+        }
+    }
+
     @Override
     public Map<String, String> createCheckout(BigDecimal amount, String currency,
                                                String description, Map<String, String> metadata) {
+        PaymentProviderConfigService.PaymobCredentials credentials = requireCredentials();
         try {
             // 1. Authentication Request
-            String token = getAuthToken();
+            String token = getAuthToken(credentials);
 
             // 2. Order Registration API
             String orderId = registerOrder(token, amount, currency, metadata);
 
             // 3. Payment Key Request
-            String paymentToken = requestPaymentKey(token, amount, currency, orderId, metadata);
+            String paymentToken = requestPaymentKey(token, amount, currency, orderId, credentials);
 
             // 4. Construct iframe URL
-            String checkoutUrl = "https://accept.paymob.com/api/acceptance/iframes/" + iframeId + "?payment_token=" + paymentToken;
+            String checkoutUrl = "https://accept.paymob.com/api/acceptance/iframes/"
+                + credentials.iframeId() + "?payment_token=" + paymentToken;
 
             Map<String, String> result = new HashMap<>();
             result.put("checkoutUrl", checkoutUrl);
             result.put("transactionId", orderId); // Use orderId as transaction tracking ID initially
             return result;
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Paymob checkout creation failed", e);
             throw new BadRequestException("Failed to initiate payment with Paymob");
         }
     }
 
-    private String getAuthToken() {
+    private PaymentProviderConfigService.PaymobCredentials requireCredentials() {
+        PaymentProviderConfigService.PaymobCredentials credentials = configService.getPaymobCredentials();
+        if (!credentials.complete()) {
+            throw new BadRequestException(
+                "Paymob is not configured yet — add your API key, integration ID, iframe ID and HMAC secret in Admin → Integrations.");
+        }
+        return credentials;
+    }
+
+    private String getAuthToken(PaymentProviderConfigService.PaymobCredentials credentials) {
         String url = PAYMOB_API_BASE + "/auth/tokens";
-        Map<String, String> body = Map.of("api_key", apiKey);
+        Map<String, String> body = Map.of("api_key", credentials.apiKey());
         ResponseEntity<JsonNode> response = restTemplate.postForEntity(url, body, JsonNode.class);
         if (response.getBody() == null || !response.getBody().has("token")) {
             throw new RuntimeException("Invalid response from Paymob Auth");
@@ -108,18 +125,19 @@ public class PaymobProvider implements PaymentProvider {
         return response.getBody().get("id").asText();
     }
 
-    private String requestPaymentKey(String token, BigDecimal amount, String currency, String orderId, Map<String, String> metadata) {
+    private String requestPaymentKey(String token, BigDecimal amount, String currency, String orderId,
+                                     PaymentProviderConfigService.PaymobCredentials credentials) {
         String url = PAYMOB_API_BASE + "/acceptance/payment_keys";
-        
+
         int amountCents = amount.multiply(BigDecimal.valueOf(100)).intValue();
-        
+
         Map<String, Object> body = new HashMap<>();
         body.put("auth_token", token);
         body.put("amount_cents", String.valueOf(amountCents));
         body.put("expiration", 3600);
         body.put("order_id", orderId);
         body.put("currency", currency);
-        body.put("integration_id", integrationId);
+        body.put("integration_id", credentials.integrationId());
         
         // Billing data is required by Paymob
         Map<String, String> billingData = new HashMap<>();
@@ -151,14 +169,14 @@ public class PaymobProvider implements PaymentProvider {
         try {
             JsonNode root = objectMapper.readTree(payload);
             JsonNode obj = root.path("obj");
-            
+
             if (obj.isMissingNode()) {
                 throw new BadRequestException("Invalid webhook payload structure");
             }
-            
+
             // Calculate HMAC
             String calculatedHmac = calculateHmac(obj);
-            
+
             if (!calculatedHmac.equalsIgnoreCase(signature)) {
                 log.warn("HMAC verification failed. Expected: {}, Got: {}", calculatedHmac, signature);
                 throw new BadRequestException("Invalid HMAC signature");
@@ -209,7 +227,7 @@ public class PaymobProvider implements PaymentProvider {
             sb.append(value);
         }
         
-        return hmacSha512(sb.toString(), hmacSecret);
+        return hmacSha512(sb.toString(), configService.getPaymobCredentials().hmacSecret());
     }
     
     private String getJsonNodeValue(JsonNode obj, String path) {

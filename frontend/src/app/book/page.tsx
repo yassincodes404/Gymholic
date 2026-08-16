@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ServiceSelect } from "@/components/booking/ServiceSelect";
@@ -11,7 +11,10 @@ import { BookingSummary } from "@/components/booking/BookingSummary";
 import { BookingConfirmation } from "@/components/booking/BookingConfirmation";
 import { BookingProgress } from "@/components/booking/BookingProgress";
 import { PaymentForm } from "@/components/checkout/PaymentForm";
+import { TermsAcceptance } from "@/components/checkout/TermsAcceptance";
 import type { ConsultationService } from "@/lib/consultations";
+import { consultationServices } from "@/lib/consultations";
+import { applyPricing, fetchBookingPricing } from "@/lib/pricing";
 import { dateKey, formatDateLabel } from "@/lib/bookingSlots";
 import { useLenis } from "@/components/motion/useLenis";
 import { ScrollRefresher } from "@/components/motion/ScrollRefresher";
@@ -70,12 +73,46 @@ export default function BookPage() {
 
   const [step, setStep] = useState<Step>("service");
   const [service, setService] = useState<ConsultationService | null>(null);
+  const [services, setServices] = useState<ConsultationService[]>(consultationServices);
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState<string | null>(null);
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
   const [details, setDetails] = useState<BookingDetails>(emptyBookingDetails);
   const [bookingRef, setBookingRef] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [confirmedMeetLink, setConfirmedMeetLink] = useState<string | null>(null);
+  const [confirmedStatus, setConfirmedStatus] = useState<string | null>(null);
+  const [paying, setPaying] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<"paymob" | "mock" | "none" | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Which gateway checkout should use ("paymob" when enabled in Admin →
+  // Integrations, "mock" in dev). Public endpoint.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(buildBackendApiUrl("payments/active-provider"))
+      .then((res) => res.json().catch(() => null))
+      .then((payload) => {
+        if (!cancelled) setActiveProvider(payload?.data?.provider ?? "none");
+      })
+      .catch(() => {
+        if (!cancelled) setActiveProvider("none");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Live prices from the backend (admin-managed); falls back to catalogue defaults.
+  useEffect(() => {
+    let cancelled = false;
+    fetchBookingPricing().then((pricing) => {
+      if (!cancelled && pricing) setServices(applyPricing(consultationServices, pricing));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const stepOrder: Step[] =
     service?.isFree ? ["service", "datetime", "details", "confirmation"] : ["service", "datetime", "details", "payment", "confirmation"];
@@ -147,18 +184,129 @@ export default function BookPage() {
     }
 
     const createdBooking = (bookingData as { data?: { id?: number | string } } | null)?.data;
-    return createdBooking?.id ? `BK-${createdBooking.id}` : `BK-${Date.now()}`;
+    return createdBooking?.id ? Number(createdBooking.id) : null;
+  }
+
+  async function confirmBackendBooking(bookingId: number) {
+    const token = getStoredAuthToken();
+    if (!token) return;
+    try {
+      const res = await fetch(buildBackendApiUrl(`bookings/${bookingId}/confirm`), {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.data) {
+        setConfirmedStatus(data.data.status ?? null);
+        setConfirmedMeetLink(data.data.meetLink ?? null);
+      }
+    } catch {
+      // Non-fatal: the booking exists; confirmation status is visible in /account.
+    }
+  }
+
+  /**
+   * Paid booking flow. Provider "paymob": create the booking + payment on
+   * the backend, then redirect to Paymob's hosted card checkout — the
+   * webhook confirms the booking after a successful payment. Provider
+   * "mock" (dev): create + complete the test payment inline, which runs
+   * the full payment → confirmation → Calendar/Meet → email pipeline.
+   */
+  async function runBackendPaidBookingFlow(provider: "paymob" | "mock") {
+    if (!service || !date || !time) return;
+    setPaying(true);
+    setBookingError(null);
+    try {
+      const bookingId = await tryCreateBackendBooking(service, date, time);
+      if (!bookingId) {
+        throw new BookingFlowError("The backend rejected this booking.", false);
+      }
+
+      const token = getStoredAuthToken();
+      const paymentResponse = await fetch(buildBackendApiUrl("payments"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          bookingId,
+          amount: service.price,
+          currency: service.currency,
+          provider,
+        }),
+      });
+      const paymentData = await paymentResponse.json().catch(() => null);
+      if (!paymentResponse.ok || !paymentData?.data?.id) {
+        throw new BookingFlowError(
+          extractErrorMessage(paymentData, "Could not create the payment."),
+          false
+        );
+      }
+
+      if (provider === "paymob") {
+        const checkoutUrl = paymentData.data.checkoutUrl as string | undefined;
+        if (!checkoutUrl) {
+          throw new BookingFlowError("Paymob checkout could not be started.", false);
+        }
+        window.location.href = checkoutUrl;
+        return; // The Paymob webhook confirms the booking after payment.
+      }
+
+      const completeResponse = await fetch(
+        buildBackendApiUrl(`payments/mock/${paymentData.data.id}/complete`),
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const completeData = await completeResponse.json().catch(() => null);
+      if (!completeResponse.ok || !completeData?.success) {
+        throw new BookingFlowError(
+          extractErrorMessage(completeData, "Test payment completion failed."),
+          false
+        );
+      }
+
+      // Re-read the booking so the confirmation shows its final state + Meet link.
+      const bookingResponse = await fetch(buildBackendApiUrl(`bookings/${bookingId}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const bookingData = await bookingResponse.json().catch(() => null);
+      if (bookingResponse.ok && bookingData?.data) {
+        setConfirmedStatus(bookingData.data.status ?? null);
+        setConfirmedMeetLink(bookingData.data.meetLink ?? null);
+      }
+
+      setBookingRef(`BK-${bookingId}`);
+      setStep("confirmation");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Payment failed. Please try again.";
+      setBookingError(message);
+      setTime(null);
+      setStep("datetime");
+    } finally {
+      setPaying(false);
+    }
   }
 
   async function createBooking() {
     if (!service || !date || !time) return;
     setBookingError(null);
+    setConfirmedMeetLink(null);
+    setConfirmedStatus(null);
 
     try {
-      const backendBookingRef = await tryCreateBackendBooking(service, date, time);
-      setBookingRef(backendBookingRef);
-      setStep("confirmation");
-      return;
+      const backendBookingId = await tryCreateBackendBooking(service, date, time);
+      if (backendBookingId) {
+        if (service.isFree) {
+          // Free calls confirm immediately (no payment step).
+          await confirmBackendBooking(backendBookingId);
+        }
+        setBookingRef(`BK-${backendBookingId}`);
+        setStep("confirmation");
+        return;
+      }
     } catch (error) {
       if (!(error instanceof BookingFlowError) || !error.allowFrontendFallback) {
         const message = error instanceof Error ? error.message : "That slot is no longer available. Please pick another time.";
@@ -212,6 +360,7 @@ export default function BookPage() {
 
           {step === "service" && (
             <ServiceSelect
+              services={services}
               onSelect={(s) => {
                 setService(s);
                 setStep("datetime");
@@ -261,18 +410,92 @@ export default function BookPage() {
 
           {step === "payment" && service && date && time && (
             <div className="grid md:grid-cols-2 gap-12">
-              <PaymentForm
-                amountLabel={`${service.price} ${service.currency}`}
-                submitLabel="Pay & Confirm Booking"
-                showWallets
-                onSuccess={createBooking}
-              />
+              {getStoredAuthToken() ? (
+                activeProvider === "paymob" ? (
+                  <div className="rounded-2xl p-8" style={{ background: "var(--surface)" }}>
+                    <h2 className="font-semibold text-lg mb-2">Card payment</h2>
+                    <p className="text-sm opacity-70 mb-6">
+                      You&apos;ll be redirected to Paymob&apos;s secure checkout to pay{" "}
+                      {service.price} {service.currency}. Your booking is confirmed
+                      automatically once the payment succeeds — the Google Meet
+                      invitation and receipt are emailed to you right after.
+                    </p>
+                    <TermsAcceptance checked={termsAccepted} onChange={setTermsAccepted} />
+                    <button
+                      type="button"
+                      onClick={() => runBackendPaidBookingFlow("paymob").catch(() => {})}
+                      disabled={paying || !termsAccepted}
+                      className="btn-pill w-full justify-center disabled:opacity-50"
+                    >
+                      {paying ? "Starting checkout…" : `Pay ${service.price} ${service.currency} with Card`}
+                    </button>
+                    {bookingError && (
+                      <p className="text-sm mt-4" style={{ color: "var(--orange)" }} role="alert">
+                        {bookingError}
+                      </p>
+                    )}
+                  </div>
+                ) : activeProvider === "mock" ? (
+                  <div className="rounded-2xl p-8" style={{ background: "var(--surface)" }}>
+                    <h2 className="font-semibold text-lg mb-2">Test payment mode</h2>
+                    <p className="text-sm opacity-70 mb-6">
+                      No live payment gateway is enabled yet (enable Paymob under
+                      Admin → Integrations), so this checkout runs in test mode.
+                      Completing it exercises the real backend pipeline: payment
+                      record → booking confirmation → Google Calendar event &amp;
+                      Meet link → confirmation email.
+                    </p>
+                    <TermsAcceptance checked={termsAccepted} onChange={setTermsAccepted} />
+                    <button
+                      type="button"
+                      onClick={() => runBackendPaidBookingFlow("mock").catch(() => {})}
+                      disabled={paying || !termsAccepted}
+                      className="btn-pill w-full justify-center disabled:opacity-50"
+                    >
+                      {paying
+                        ? "Processing…"
+                        : `Complete Test Payment (${service.price} ${service.currency})`}
+                    </button>
+                    {bookingError && (
+                      <p className="text-sm mt-4" style={{ color: "var(--orange)" }} role="alert">
+                        {bookingError}
+                      </p>
+                    )}
+                  </div>
+                ) : activeProvider === "none" ? (
+                  <div className="rounded-2xl p-8" style={{ background: "var(--surface)" }}>
+                    <h2 className="font-semibold text-lg mb-2">Payments unavailable</h2>
+                    <p className="text-sm opacity-70">
+                      No payment gateway is configured yet. Please check back
+                      shortly, or book the Free Open Consultation instead.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl p-8" style={{ background: "var(--surface)" }}>
+                    <p className="text-sm opacity-70">Loading payment options…</p>
+                  </div>
+                )
+              ) : (
+                <PaymentForm
+                  amountLabel={`${service.price} ${service.currency}`}
+                  submitLabel="Pay & Confirm Booking"
+                  showWallets
+                  onSuccess={createBooking}
+                />
+              )}
               <BookingSummary service={service} date={date} time={time} />
             </div>
           )}
 
           {step === "confirmation" && service && date && time && bookingRef && (
-            <BookingConfirmation service={service} date={date} time={time} bookingRef={bookingRef} />
+            <BookingConfirmation
+              service={service}
+              date={date}
+              time={time}
+              bookingRef={bookingRef}
+              meetLink={confirmedMeetLink}
+              status={confirmedStatus}
+            />
           )}
         </div>
       </main>

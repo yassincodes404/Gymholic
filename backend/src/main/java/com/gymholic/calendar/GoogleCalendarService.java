@@ -113,9 +113,12 @@ public class GoogleCalendarService implements CalendarService {
                             .setRequestId(java.util.UUID.randomUUID().toString())
                             .setConferenceSolutionKey(new com.google.api.services.calendar.model.ConferenceSolutionKey().setType("hangoutsMeet"))));
 
-            // Insert into primary calendar
+            // Insert into primary calendar. sendUpdates=all makes Google email
+            // the attendee (the client) a real calendar invitation from Gmail,
+            // so they see themselves on the meeting in their own calendar.
             Event createdEvent = service.events().insert("primary", event)
                     .setConferenceDataVersion(1) // Required to generate meet link
+                    .setSendUpdates("all")
                     .execute();
 
             String meetLink = null;
@@ -165,7 +168,8 @@ public class GoogleCalendarService implements CalendarService {
                 .setDateTime(endDateTime)
                 .setTimeZone(expertZone.getId()));
 
-            service.events().update("primary", eventId, event).execute();
+            // sendUpdates=all → Google notifies the attendee by email about the new time.
+            service.events().update("primary", eventId, event).setSendUpdates("all").execute();
         } catch (Exception e) {
             log.error("Failed to update Google Calendar Event", e);
             throw new RuntimeException("Failed to update event", e);

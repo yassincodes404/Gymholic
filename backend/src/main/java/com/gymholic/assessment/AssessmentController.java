@@ -58,9 +58,9 @@ public class AssessmentController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<PagedResponse<AssessmentResponse>> getAllAssessments(Pageable pageable) {
+    public ResponseEntity<ApiResponse<PagedResponse<AssessmentResponse>>> getAllAssessments(Pageable pageable) {
         Page<AssessmentResponse> assessments = assessmentService.getAllAssessments(pageable);
-        
+
         PagedResponse<AssessmentResponse> pagedResponse = PagedResponse.<AssessmentResponse>builder()
                 .content(assessments.getContent())
                 .page(assessments.getNumber())
@@ -69,7 +69,7 @@ public class AssessmentController {
                 .totalPages(assessments.getTotalPages())
                 .last(assessments.isLast())
                 .build();
-                
-        return ResponseEntity.ok(pagedResponse);
+
+        return ResponseEntity.ok(ApiResponse.success(pagedResponse));
     }
 }

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 40px;">
+        <h1 style="color: #1a1a1a; margin-bottom: 24px;">Session marked as no-show</h1>
+        <div style="background: #fff7ed; border-left: 4px solid #f59e0b; padding: 16px; margin: 24px 0; border-radius: 4px;">
+            <p style="margin: 0 0 8px 0; color: #7c2d12;"><strong th:text="${clientName}">Client</strong>
+                &lt;<span th:text="${clientEmail}">client@email.com</span>&gt;</p>
+            <p style="margin: 0 0 8px 0; color: #7c2d12;">Session: <span th:text="${dateTime}">date/time</span></p>
+            <p style="margin: 0 0 8px 0; color: #7c2d12;">Expert attended: <strong th:text="${expertAttended}">yes</strong></p>
+            <p style="margin: 0; color: #7c2d12;">Note: <span th:text="${note != null} ? ${note} : '—'">note</span></p>
+        </div>
+        <p style="color: #333; font-size: 16px;" th:if="${refundDue}">
+          <strong>Action needed:</strong> the expert missed this paid session —
+          the client has been offered a full refund or a free rebooking.
+          If they ask for a refund, process it from your Paymob dashboard
+          (Transactions → Refund) and update the payment record.
+        </p>
+        <p style="color: #333; font-size: 16px;" th:unless="${refundDue}">
+          The client was emailed a one-time reschedule link (valid 14 days);
+          their payment is held as credit for the new time.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;">
+        <p style="color: #999; font-size: 12px; text-align: center;">
+            Gymholic — Your fitness journey starts here.
+        </p>
+    </div>
+</body>
+</html>

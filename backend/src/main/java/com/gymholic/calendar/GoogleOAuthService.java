@@ -45,7 +45,10 @@ public class GoogleOAuthService {
     @Value("${google.redirect.uri:}")
     private String redirectUri;
 
-    private static final List<String> SCOPES = Collections.singletonList(CalendarScopes.CALENDAR);
+    private static final List<String> SCOPES = List.of(
+        CalendarScopes.CALENDAR,
+        "https://www.googleapis.com/auth/userinfo.email" // to store the connected account email
+    );
     private static final GsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     private static final NetHttpTransport HTTP_TRANSPORT = new NetHttpTransport();
     private static final String STATE_CACHE_PREFIX = "oauth_state:";
@@ -122,8 +125,8 @@ public class GoogleOAuthService {
 
             log.info("Successfully received refresh token for user {}", userId);
 
-            // In a real implementation, call a Google API endpoint (like userinfo) to fetch the connected Google Email.
-            String googleEmail = "expert-connected@example.com"; 
+            // Fetch the connected account's real email from Google's userinfo endpoint.
+            String googleEmail = fetchGoogleEmail(response.getAccessToken());
 
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -156,6 +159,31 @@ public class GoogleOAuthService {
             log.error("Failed to exchange code for token", e);
             throw new RuntimeException("Failed to connect Google Calendar", e);
         }
+    }
+
+    /**
+     * Looks up the Google account's email with the just-issued access token.
+     * Never fails the connection — falls back to a placeholder if the call fails.
+     */
+    private String fetchGoogleEmail(String accessToken) {
+        try {
+            org.springframework.web.client.RestTemplate rest = new org.springframework.web.client.RestTemplate();
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            var response = rest.exchange(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                org.springframework.http.HttpMethod.GET,
+                new org.springframework.http.HttpEntity<>(headers),
+                String.class
+            );
+            com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(response.getBody()).getAsJsonObject();
+            if (json.has("email") && !json.get("email").isJsonNull()) {
+                return json.get("email").getAsString();
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch Google account email: {}", e.getMessage());
+        }
+        return "connected-google-account";
     }
 
     @Transactional(readOnly = true)

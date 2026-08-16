@@ -55,6 +55,14 @@ public class GlobalExceptionHandler {
             .body(ApiResponse.error("Validation failed", errors));
     }
 
+    /** Unknown routes (e.g. a stale frontend calling a missing endpoint) → 404, not 500. */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ApiResponse.error("Endpoint not found: " + ex.getResourcePath()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(Exception ex) {
         log.error("An unexpected error occurred: ", ex);

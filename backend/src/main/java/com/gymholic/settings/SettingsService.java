@@ -30,6 +30,35 @@ public class SettingsService {
         return settings.getValue();
     }
 
+    /** Reads a setting with a fallback — never throws (errors fall back). */
+    @Transactional(readOnly = true)
+    public String getString(String key, String fallback) {
+        try {
+            Settings settings = settingsRepository.findByKey(key).orElse(null);
+            if (settings == null || settings.getValue() == null || settings.getValue().isBlank()) {
+                return fallback;
+            }
+            return settings.getValue().trim();
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public boolean getBool(String key, boolean fallback) {
+        String value = getString(key, Boolean.toString(fallback));
+        return value.equalsIgnoreCase("true") || value.equalsIgnoreCase("1") || value.equalsIgnoreCase("yes");
+    }
+
+    @Transactional(readOnly = true)
+    public int getInt(String key, int fallback) {
+        try {
+            return Integer.parseInt(getString(key, Integer.toString(fallback)));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
     @Transactional
     public void updateSetting(String key, String value) {
         Settings settings = settingsRepository.findByKey(key)

@@ -55,12 +55,36 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: 1025
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # ---- MailHog (dev SMTP inbox — web UI at http://localhost:8025) ----
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: gymholic-mailhog
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+
+  # ---- Adminer (Postgres web UI at http://localhost:8090) ----
+  # Inspect tables, settings, bookings and orders while developing.
+  adminer:
+    image: adminer:4-standalone
+    container_name: gymholic-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "8090:8080"
+    depends_on:
+      postgres:
         condition: service_healthy
 
   # ---- Frontend (Next.js Dev Server) ----
@@ -74,6 +98,7 @@ services:
     environment:
       NEXT_PUBLIC_BACKEND_API_BASE_URL: ${NEXT_PUBLIC_BACKEND_API_BASE_URL:-http://localhost:8080/api}
       NEXT_PUBLIC_DEFAULT_TRAINER_ID: ${NEXT_PUBLIC_DEFAULT_TRAINER_ID:-1}
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - "3000:3000"
     volumes:

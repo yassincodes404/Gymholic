@@ -29,6 +29,7 @@ public class GoogleSignInService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final AdminBootstrapService adminBootstrapService;
 
     @Value("${google.client.id}")
     private String googleClientId;
@@ -88,6 +89,9 @@ public class GoogleSignInService {
                                     return userRepository.save(newUser);
                                 });
                     });
+
+            // Trusted emails (e.g. the owner) get ADMIN on first Google sign-in
+            adminBootstrapService.promoteIfBootstrapEmail(user.getEmail());
 
             // Generate JWT tokens
             UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());

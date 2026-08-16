@@ -11,7 +11,7 @@ export default function TermsPage() {
           Terms & Conditions
         </h1>
         <p className="mb-6">
-          Last updated: August 14, 2026
+          Last updated: August 16, 2026
         </p>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
@@ -55,6 +55,105 @@ export default function TermsPage() {
             expert's facility, or through other agreed-upon methods. The format
             will be agreed upon between the expert and client prior to booking.
           </p>
+          <h3 className="text-xl font-medium mb-3">
+            Free Open Consultation
+          </h3>
+          <p className="mb-6">
+            The Free Open Consultation is a complimentary introductory session
+            held over Google Meet with open time. It carries no charge and may
+            be cancelled or rebooked at any time.
+          </p>
+          <h3 className="text-xl font-medium mb-3">
+            Reminders
+          </h3>
+          <p className="mb-6">
+            You will receive an email reminder approximately 24 hours and again
+            1 hour before each confirmed session, together with your Google
+            Meet link and calendar invitation.
+          </p>
+        </section>
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">
+            Payments
+          </h2>
+          <p className="mb-6">
+            GymHolic processes payments through Paymob (Stripe support is
+            planned). Card details are entered on the payment provider's own
+            secure checkout page — GymHolic never sees or stores your full
+            card number. Only a payment record (amount, currency, status and a
+            provider transaction reference) is retained, and you can review
+            every charge in the payment history on your account page.
+          </p>
+          <h3 className="text-xl font-medium mb-3">
+            Pricing &amp; Currency
+          </h3>
+          <p className="mb-6">
+            All prices are displayed and charged in US Dollars (USD). The price
+            shown at the time of booking is the price you pay. Prices are set
+            by GymHolic and may be updated at any time; updates do not affect
+            bookings already paid for.
+          </p>
+          <h3 className="text-xl font-medium mb-3">
+            Acceptance of These Terms
+          </h3>
+          <p className="mb-6">
+            Before completing any payment you must tick the acceptance box
+            confirming that you have read and agree to these Terms &amp;
+            Conditions, the Privacy Policy, and the cancellation and
+            missed-session policies below.
+          </p>
+        </section>
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">
+            Cancellations &amp; Rescheduling
+          </h2>
+          <ul className="list-disc list-inside mb-6 space-y-2">
+            <li>
+              <strong>Cancel 24 hours or more before the session:</strong> you
+              may cancel free of charge and choose either a full refund or a
+              free move to another available time.
+            </li>
+            <li>
+              <strong>Cancel less than 24 hours before the session:</strong> the
+              booking may be cancelled, but the payment is retained as credit
+              towards a future session.
+            </li>
+            <li>
+              <strong>Move a session:</strong> you can ask to reschedule at any
+              time; the new time is subject to the expert's availability.
+            </li>
+          </ul>
+        </section>
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">
+            Missed Sessions (No-Show Policy)
+          </h2>
+          <p className="mb-6">
+            Sessions are held at the scheduled time over Google Meet. If a
+            client does not join, the following policy applies:
+          </p>
+          <ul className="list-disc list-inside mb-6 space-y-2">
+            <li>
+              <strong>If you miss a paid session that the expert attended:</strong>{" "}
+              the session counts as delivered, your payment is kept as credit,
+              and we email you a personal, one-time link to choose a new time
+              (valid for 14 days). If you prefer a refund instead, reply to
+              that email and we will assist you.
+            </li>
+            <li>
+              <strong>If the expert misses the session:</strong> that is on us —
+              you are offered, at your choice, a full refund or a free
+              rebooking using the same emailed link.
+            </li>
+            <li>
+              <strong>If both parties miss the session:</strong> contact us and
+              we will arrange either a refund or a new time.
+            </li>
+          </ul>
+          <p className="mb-6">
+            Expired reschedule links cannot be reused; contact us and we will
+            make it right.
+          </p>
         </section>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
@@ -89,25 +188,6 @@ export default function TermsPage() {
         </section>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
-            Payments
-          </h2>
-          <p className="mb-6">
-            GymHolic processes payments through Stripe. All payment card data is
-            handled according to PCI DSS requirements. GymHolic does not store
-            full credit card details; only Stripe payment tokens are retained.
-          </p>
-          <h3 className="text-xl font-medium mb-3">
-            Consultation Fees
-          </h3>
-          <p className="mb-6">
-            Consultation fees are set by the expert and processed through the
-            GymHolic platform. All fees are in USD unless otherwise agreed.
-            Refund policies are determined by the individual expert and should
-            be agreed upon before booking.
-          </p>
-        </section>
-        <section className="mb-8">
-          <h2 className="text-2xl font-semibold mb-4">
             Liability
           </h2>
           <p className="mb-6">
@@ -129,10 +209,13 @@ export default function TermsPage() {
           </p>
           <ul className="list-disc list-inside mb-6 space-y-2">
             <li>
-              <strong>Stripe:</strong> For payment processing. Stripe's
-              Terms of Service apply: <a href="https://stripe.com/terms"
+              <strong>Paymob:</strong> For payment processing. Paymob's
+              Terms of Service apply: <a href="https://accept.paymob.com"
                 target="_blank" rel="noopener noreferrer"
-                >stripe.com/terms</a>
+                >accept.paymob.com</a>
+            </li>
+            <li>
+              <strong>Stripe:</strong> Planned for future payment processing.
             </li>
             <li>
               <strong>Google Calendar/Meet:</strong> For calendar connectivity

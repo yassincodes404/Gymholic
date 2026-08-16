@@ -7,7 +7,6 @@ import { MagneticButton } from "@/components/motion/MagneticButton";
 export function CartDrawer() {
   const { isOpen, close, subtotal, removeItem } = useCart();
   const items = useCartItems();
-
   return (
     <>
       <div
@@ -51,11 +50,21 @@ export function CartDrawer() {
               {items.map((item) => (
                 <div key={item.id} className="flex gap-4">
                   <div className="w-16 h-16 shrink-0">
-                    <BlueprintCover lines={item.coverLines} size="mini" />
+                    {item.coverLines ? (
+                      <BlueprintCover lines={item.coverLines} size="mini" />
+                    ) : (
+                      <div
+                        className="w-full h-full rounded-lg flex items-center justify-center text-2xl"
+                        style={{ background: "rgba(255,106,0,0.12)", border: "1px solid rgba(255,106,0,0.25)" }}
+                        aria-hidden
+                      >
+                        {item.productType === "ACADEMY" ? "🎓" : "📄"}
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{item.name}</p>
-                    <p className="text-xs opacity-50 mb-1">{item.resourceType}</p>
+                    <p className="text-xs opacity-50 mb-1">{item.kindLabel}</p>
                     <p className="text-sm" style={{ color: "var(--orange)" }}>
                       ${item.price}
                     </p>

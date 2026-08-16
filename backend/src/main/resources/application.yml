@@ -12,13 +12,17 @@ app:
     refresh-expiration-ms: 604800000 # 7 days
   cors:
     allowed-origins: ${FRONTEND_URL:http://localhost:3000}
+  admin:
+    bootstrap-emails: ${ADMIN_BOOTSTRAP_EMAILS:}
   mail:
-    from: ${MAIL_USERNAME:noreply@gymholic.com}
+    from: ${MAIL_FROM:noreply@gymholic.com}
 
 google:
   client:
     id: ${GOOGLE_CLIENT_ID:}
     secret: ${GOOGLE_CLIENT_SECRET:}
+  redirect:
+    uri: ${GOOGLE_REDIRECT_URI:}
 spring:
   application:
     name: gymholic-backend

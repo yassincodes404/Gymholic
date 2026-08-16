@@ -63,5 +63,9 @@ public class BookingDto {
     private String notes;
     private String meetLink;
     private String externalEventId;
+    /** True when the expert joined a session later marked as a no-show. */
+    private Boolean expertAttended;
+    private String noShowNote;
+    private int rescheduleCount;
     private LocalDateTime createdAt;
 }

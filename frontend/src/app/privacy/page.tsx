@@ -11,7 +11,7 @@ export default function PrivacyPage() {
           Privacy Policy
         </h1>
         <p className="mb-6">
-          Last updated: August 14, 2026
+          Last updated: August 16, 2026
         </p>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
@@ -86,6 +86,32 @@ export default function PrivacyPage() {
         </section>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
+            Booking &amp; Payment Data
+          </h2>
+          <ul className="list-disc list-inside mb-6 space-y-2">
+            <li>
+              For each booking we store your name, email, session details and
+              meeting notes so the consultation can be delivered, reminded and
+              rescheduled.
+            </li>
+            <li>
+              Payments are processed by Paymob on their secure checkout page.
+              We never see or store your full card number. We keep a payment
+              record (amount in USD, status, provider name and a transaction
+              reference) which powers the payment history on your account page.
+            </li>
+            <li>
+              If a session is marked as missed, we generate a single-use,
+              expiring reschedule link that is emailed only to you.
+            </li>
+            <li>
+              Emails (confirmations, receipts, reminders and reschedule links)
+              are sent to the address you provide at booking.
+            </li>
+          </ul>
+        </section>
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">
             Third-Party Services
           </h2>
           <p className="mb-6">
@@ -101,8 +127,11 @@ export default function PrivacyPage() {
                 >policies.google.com/privacy</a>
             </li>
             <li>
-              <strong>Stripe:</strong> For processing payment transactions.
-              Stripe's privacy policy applies.
+              <strong>Paymob:</strong> For processing payment transactions.
+              Paymob's privacy policy applies.
+            </li>
+            <li>
+              <strong>Stripe:</strong> Planned for future payment processing.
             </li>
             <li>
               <strong>Upstash Redis:</strong> For shared storage of booked slots

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { kv } from "@/lib/kv";
 import { sendOrderReceiptEmail } from "@/lib/email";
-import { getBlueprint } from "@/lib/blueprints";
+import { getCatalogProduct } from "@/lib/catalog";
 
 type CheckoutBody = {
   itemIds: string[];
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   const items = body.itemIds
-    .map((id) => getBlueprint(id))
+    .map((id) => getCatalogProduct(id))
     .filter((b): b is NonNullable<typeof b> => Boolean(b));
 
   if (items.length === 0) {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const order = {
     id: orderId,
     customer: body.customer,
-    items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, resourceType: i.resourceType })),
+    items: items.map((i) => ({ id: i.id, name: i.name, price: i.price, resourceType: i.kindLabel })),
     total,
     createdAt: new Date().toISOString(),
   };

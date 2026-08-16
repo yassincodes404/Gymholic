@@ -6,17 +6,52 @@ import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { BlueprintCover } from "@/components/blueprints/BlueprintCover";
-import { getBlueprint } from "@/lib/blueprints";
+import { getCatalogProduct } from "@/lib/catalog";
 import { useLenis } from "@/components/motion/useLenis";
 import { ScrollRefresher } from "@/components/motion/ScrollRefresher";
-import { getFrontendApiPath } from "@/lib/api";
+import { buildBackendApiUrl, getFrontendApiPath } from "@/lib/api";
+import { getStoredAuthToken } from "@/lib/auth";
 
 type Order = {
   id: string;
-  customer: { email: string; fullName: string };
+  email?: string;
+  status?: string;
   items: { id: string; name: string; price: number; resourceType: string }[];
   total: number;
 };
+
+/** Numeric ids are real backend orders; "GH-…" ids are guest (KV) orders. */
+function isBackendOrderId(id: string) {
+  return /^\d+$/.test(id);
+}
+
+async function loadOrder(orderId: string): Promise<Order | null> {
+  if (isBackendOrderId(orderId)) {
+    const token = getStoredAuthToken();
+    if (!token) return null;
+    const res = await fetch(buildBackendApiUrl(`orders/${orderId}`), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.success) return null;
+    const d = payload.data;
+    return {
+      id: `#${d.id}`,
+      status: d.status,
+      items: (d.items ?? []).map((i: { productId: string; title: string; unitPrice: number; productType: string }) => ({
+        id: i.productId,
+        name: i.title,
+        price: i.unitPrice,
+        resourceType: i.productType === "ACADEMY" ? "Academy Membership" : "Digital Product",
+      })),
+      total: d.total,
+    };
+  }
+
+  const res = await fetch(getFrontendApiPath(`/orders/${orderId}`));
+  if (!res.ok) return null;
+  return res.json();
+}
 
 function OrderSuccessContent() {
   const params = useSearchParams();
@@ -27,9 +62,9 @@ function OrderSuccessContent() {
 
   useEffect(() => {
     if (!orderId) return;
-    fetch(getFrontendApiPath(`/orders/${orderId}`))
-      .then((r) => (r.ok ? r.json() : null))
+    loadOrder(orderId)
       .then(setOrder)
+      .catch(() => setOrder(null))
       .finally(() => setLoading(false));
   }, [orderId]);
 
@@ -54,11 +89,21 @@ function OrderSuccessContent() {
           <>
             <div className="space-y-4 mb-6">
               {order.items.map((item) => {
-                const bp = getBlueprint(item.id);
+                const product = getCatalogProduct(item.id);
                 return (
                   <div key={item.id} className="flex gap-4 items-center">
                     <div className="w-14 h-14 shrink-0">
-                      {bp && <BlueprintCover lines={bp.coverLines} size="mini" />}
+                      {product?.coverLines ? (
+                        <BlueprintCover lines={product.coverLines} size="mini" />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded-lg flex items-center justify-center text-xl"
+                          style={{ background: "rgba(255,106,0,0.12)", border: "1px solid rgba(255,106,0,0.25)" }}
+                          aria-hidden
+                        >
+                          🎓
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium">{item.name}</p>
@@ -75,12 +120,20 @@ function OrderSuccessContent() {
                 <span>Order Number</span>
                 <span>{order.id}</span>
               </div>
-              <div className="flex justify-between opacity-70">
-                <span>Email</span>
-                <span>{order.customer.email}</span>
-              </div>
+              {order.email && (
+                <div className="flex justify-between opacity-70">
+                  <span>Email</span>
+                  <span>{order.email}</span>
+                </div>
+              )}
+              {order.status && (
+                <div className="flex justify-between opacity-70">
+                  <span>Status</span>
+                  <span>{order.status}</span>
+                </div>
+              )}
               <div className="flex justify-between font-medium">
-                <span>Total</span>
+                <span>Total (USD)</span>
                 <span>${order.total}</span>
               </div>
             </div>

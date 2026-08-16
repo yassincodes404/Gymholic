@@ -10,7 +10,8 @@ import { PaymentForm } from "@/components/checkout/PaymentForm";
 import { OrderSummary } from "@/components/checkout/OrderSummary";
 import { useLenis } from "@/components/motion/useLenis";
 import { ScrollRefresher } from "@/components/motion/ScrollRefresher";
-import { getFrontendApiPath } from "@/lib/api";
+import { getFrontendApiPath, buildBackendApiUrl } from "@/lib/api";
+import { getStoredAuthToken } from "@/lib/auth";
 
 export default function CheckoutPage() {
   useLenis();
@@ -32,12 +33,30 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
-    if (ready && itemIds.length === 0 && !completedRef.current) router.replace("/blueprints");
+    if (ready && itemIds.length === 0 && !completedRef.current) router.replace("/");
   }, [ready, itemIds.length, router]);
 
   const customerValid = customer.email.trim() && customer.fullName.trim() && customer.country.trim();
 
   async function handlePaymentSuccess() {
+    // Signed-in buyers go through the real backend (orders + payment history
+    // + Academy whitelist); guests fall back to the lightweight KV checkout.
+    const token = getStoredAuthToken();
+    if (token) {
+      const res = await fetch(buildBackendApiUrl("orders"), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.message || "Checkout failed.");
+      }
+      completedRef.current = true;
+      clear();
+      router.push(`/order-success?order=${payload.data.id}`);
+      return;
+    }
+
     const res = await fetch(getFrontendApiPath("/checkout"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },

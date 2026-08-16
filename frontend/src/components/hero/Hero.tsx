@@ -23,17 +23,17 @@ import { MagneticButton } from "@/components/motion/MagneticButton";
  * letterbox unnecessarily.
  */
 function HeroVideo() {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 768px)").matches : false
-  );
-  const [reduceMotion, setReduceMotion] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false
-  );
+  // Both values must start identical on server and client to avoid hydration
+  // mismatches; the real media-query state is applied after mount.
+  const [isMobile, setIsMobile] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const mobileMq = window.matchMedia("(max-width: 768px)");
     const reduceMotionMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setIsMobile(mobileMq.matches);
+    setReduceMotion(reduceMotionMq.matches);
     const mobileListener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     const reduceMotionListener = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
     mobileMq.addEventListener("change", mobileListener);

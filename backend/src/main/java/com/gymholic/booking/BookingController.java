@@ -1,18 +1,26 @@
 package com.gymholic.booking;
 
+import com.gymholic.availability.AvailabilityService;
+import com.gymholic.availability.dto.AvailableSlotDto;
 import com.gymholic.booking.dto.BookingDto;
 import com.gymholic.booking.dto.CreateBookingRequest;
+import com.gymholic.booking.dto.NoShowRequest;
 import com.gymholic.booking.dto.RescheduleBookingRequest;
+import com.gymholic.booking.dto.RescheduleLinkSummaryDto;
 import com.gymholic.common.response.ApiResponse;
 import com.gymholic.security.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -21,6 +29,7 @@ import java.util.Map;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final AvailabilityService availabilityService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<BookingDto>> createBooking(
@@ -72,5 +81,62 @@ public class BookingController {
             @Valid @RequestBody RescheduleBookingRequest request) {
         BookingDto booking = bookingService.rescheduleBooking(id, request);
         return ResponseEntity.ok(ApiResponse.success("Booking rescheduled", booking));
+    }
+
+    /** Admin action: close a confirmed session as delivered/ended. */
+    @PutMapping("/{id}/complete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BookingDto>> completeSession(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+            "Session marked as completed", bookingService.completeSession(id)));
+    }
+
+    /**
+     * Marks a session as a no-show (admin action). Emails the client a
+     * one-time reschedule link — or a refund/rebook offer when the expert
+     * missed the session too.
+     */
+    @PutMapping("/{id}/no-show")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BookingDto>> markNoShow(
+            @PathVariable Long id,
+            @RequestBody(required = false) NoShowRequest request) {
+        boolean expertAttended = request == null || request.isExpertAttended();
+        String note = request != null ? request.getNote() : null;
+        BookingDto booking = bookingService.markNoShow(id, expertAttended, note);
+        return ResponseEntity.ok(ApiResponse.success(
+            "Marked as no-show — the client has been emailed a reschedule link", booking));
+    }
+
+    // ---- Public, token-protected client reschedule (from the emailed link) ----
+
+    @GetMapping("/reschedule/{token}")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<ApiResponse<RescheduleLinkSummaryDto>> getRescheduleLink(
+            @PathVariable String token) {
+        return ResponseEntity.ok(ApiResponse.success(bookingService.getRescheduleLink(token)));
+    }
+
+    @GetMapping("/reschedule/{token}/slots")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<ApiResponse<List<AvailableSlotDto>>> getRescheduleSlots(
+            @PathVariable String token,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String timezone) {
+        RescheduleLinkSummaryDto summary = bookingService.getRescheduleLink(token);
+        String clientTimezone = (timezone == null || timezone.isBlank())
+            ? summary.getClientTimezone() : timezone;
+        List<AvailableSlotDto> slots = availabilityService.getAvailableSlots(
+            bookingService.getTrainerIdForRescheduleToken(token), date, clientTimezone);
+        return ResponseEntity.ok(ApiResponse.success(slots));
+    }
+
+    @PutMapping("/reschedule/{token}")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<ApiResponse<BookingDto>> rescheduleByToken(
+            @PathVariable String token,
+            @Valid @RequestBody RescheduleBookingRequest request) {
+        BookingDto booking = bookingService.rescheduleByToken(token, request);
+        return ResponseEntity.ok(ApiResponse.success("Your new time is confirmed", booking));
     }
 }

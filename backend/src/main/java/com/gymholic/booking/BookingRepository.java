@@ -11,11 +11,22 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     Page<Booking> findByClientId(Long clientId, Pageable pageable);
     Page<Booking> findByTrainerId(Long trainerId, Pageable pageable);
+
+    List<Booking> findByClientIdOrderByCreatedAtDesc(Long clientId);
+
+    Optional<Booking> findByRescheduleToken(String rescheduleToken);
+
+    List<Booking> findByStatusAndEndTimeBefore(BookingStatus status, Instant endTime);
+
+    List<Booking> findTop10ByStatusOrderByStartTimeDesc(BookingStatus status);
+
+    long countByStatusAndExpertAttended(BookingStatus status, Boolean expertAttended);
 
     @Query("SELECT b FROM Booking b WHERE b.trainer.id = :trainerId " +
            "AND b.status IN ('PENDING', 'CONFIRMED') " +
@@ -39,4 +50,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         @Param("status") BookingStatus status,
         @Param("start") Instant start,
         @Param("end") Instant end);
+
+    long countByStatus(BookingStatus status);
+
+    List<Booking> findByStatusInAndStartTimeBetweenOrderByStartTimeAsc(
+        List<BookingStatus> statuses, Instant start, Instant end);
+
+    @Query("SELECT b.status, COUNT(b) FROM Booking b GROUP BY b.status")
+    List<Object[]> countByStatusGrouped();
 }

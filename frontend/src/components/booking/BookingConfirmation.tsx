@@ -21,12 +21,44 @@ function toICSDate(date: Date): string {
 
 function durationMinutes(label: string): number {
   const match = label.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 60;
+  return match ? parseInt(match[1], 10) : 45;
+}
+
+function sessionTimes(service: ConsultationService, date: Date, time: string) {
+  const start = parseTimeToDate(date, time);
+  const end = new Date(start.getTime() + durationMinutes(service.durationLabel) * 60000);
+  return { start, end };
+}
+
+/**
+ * Opens the client's own Google Calendar with the session prefilled — they
+ * review and click save. (Google only allows programmatic writes to
+ * calendars the account owns, so a template link is the correct way to add
+ * an event to the client's calendar.)
+ */
+function googleCalendarUrl(
+  service: ConsultationService,
+  date: Date,
+  time: string,
+  bookingRef: string,
+  meetLink?: string | null
+): string {
+  const { start, end } = sessionTimes(service, date, time);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `${service.name} — Gymholic`,
+    dates: `${fmt(start)}/${fmt(end)}`,
+    details:
+      `${service.meetingType} consultation with Gymholic. Booking reference ${bookingRef}.` +
+      (meetLink ? ` Join: ${meetLink}` : ""),
+    ...(meetLink ? { location: meetLink } : {}),
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
 function downloadICS(service: ConsultationService, date: Date, time: string, bookingRef: string) {
-  const start = parseTimeToDate(date, time);
-  const end = new Date(start.getTime() + durationMinutes(service.durationLabel) * 60000);
+  const { start, end } = sessionTimes(service, date, time);
 
   const ics = [
     "BEGIN:VCALENDAR",
@@ -57,11 +89,15 @@ export function BookingConfirmation({
   date,
   time,
   bookingRef,
+  meetLink,
+  status,
 }: {
   service: ConsultationService;
   date: Date;
   time: string;
   bookingRef: string;
+  meetLink?: string | null;
+  status?: string | null;
 }) {
   return (
     <div className="text-center">
@@ -94,8 +130,22 @@ export function BookingConfirmation({
             <span>Booking Reference</span>
             <span>{bookingRef}</span>
           </div>
+          {status && (
+            <div className="flex justify-between pt-2">
+              <span>Status</span>
+              <span>{status}</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {meetLink && (
+        <div className="max-w-md mx-auto mb-8">
+          <a href={meetLink} target="_blank" rel="noreferrer" className="btn-pill inline-block">
+            Join Google Meet
+          </a>
+        </div>
+      )}
 
       <p className="text-sm opacity-60 mb-1">Confirmation sent to your email.</p>
       <p className="text-sm opacity-60 mb-10">
@@ -104,10 +154,24 @@ export function BookingConfirmation({
           : "Meeting location and instructions will be sent to your email."}
       </p>
 
-      <div className="flex flex-wrap gap-4 justify-center">
-        <button type="button" onClick={() => downloadICS(service, date, time, bookingRef)} className="btn-pill">
-          Add to Calendar
+      <div className="flex flex-col items-center gap-4">
+        <a
+          href={googleCalendarUrl(service, date, time, bookingRef, meetLink)}
+          target="_blank"
+          rel="noreferrer"
+          className="btn-pill"
+        >
+          Add to Google Calendar
+        </a>
+        <button
+          type="button"
+          onClick={() => downloadICS(service, date, time, bookingRef)}
+          className="text-xs opacity-50 underline hover:no-underline hover:opacity-80"
+        >
+          Using another calendar? Download the invite (.ics)
         </button>
+      </div>
+      <div className="mt-6">
         <Link href="/" className="btn-pill btn-pill--ghost">
           Back to Gymholic
         </Link>

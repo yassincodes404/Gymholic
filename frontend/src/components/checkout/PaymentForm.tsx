@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { TermsAcceptance } from "@/components/checkout/TermsAcceptance";
 
 type PaymentFormProps = {
   amountLabel: string;
@@ -34,6 +35,8 @@ export function PaymentForm({ amountLabel, submitLabel, onSuccess, showWallets =
   const [nameOnCard, setNameOnCard] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Status>("idle");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   function validate() {
     const next: Record<string, string> = {};
@@ -56,6 +59,11 @@ export function PaymentForm({ amountLabel, submitLabel, onSuccess, showWallets =
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!termsAccepted) {
+      setTermsError("Please accept the Terms & Conditions to continue.");
+      return;
+    }
+    setTermsError(null);
     if (!validate()) return;
 
     setStatus("processing");
@@ -158,6 +166,12 @@ export function PaymentForm({ amountLabel, submitLabel, onSuccess, showWallets =
             Something went wrong. Please try again.
           </p>
         )}
+
+        <TermsAcceptance
+          checked={termsAccepted}
+          onChange={setTermsAccepted}
+          error={termsError}
+        />
 
         <button type="submit" disabled={status === "processing"} className="btn-pill w-full justify-center mt-2">
           {status === "processing" ? "Processing…" : `${submitLabel} ${amountLabel}`}

@@ -1,18 +1,24 @@
 package com.gymholic.booking;
 
 import com.gymholic.availability.AvailabilityRepository;
+import com.gymholic.payment.PaymentRepository;
+import com.gymholic.payment.entity.Payment;
+import com.gymholic.common.enums.PaymentStatus;
 import com.gymholic.availability.entity.Availability;
 import com.gymholic.booking.dto.BookingDto;
 import com.gymholic.booking.dto.CreateBookingRequest;
 import com.gymholic.booking.dto.RescheduleBookingRequest;
+import com.gymholic.booking.dto.RescheduleLinkSummaryDto;
 import com.gymholic.booking.entity.Booking;
 import com.gymholic.common.enums.BookingStatus;
 import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
+import com.gymholic.common.util.DateTimeUtils;
 import com.gymholic.user.UserRepository;
 import com.gymholic.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,7 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.gymholic.calendar.CalendarService;
 import com.gymholic.calendar.dto.CalendarEventDto;
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import com.gymholic.notification.NotificationService;
 
 @Service
@@ -28,11 +37,24 @@ import com.gymholic.notification.NotificationService;
 @Slf4j
 public class BookingService {
 
+    private static final Duration RESCHEDULE_WINDOW = Duration.ofDays(14);
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
+
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final AvailabilityRepository availabilityRepository;
+    private final PaymentRepository paymentRepository;
+    private final com.gymholic.settings.SettingsService settingsService;
     private final CalendarService calendarService;
     private final NotificationService notificationService;
+
+    /** First configured frontend origin — used for links inside emails. */
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    private String allowedOrigins;
+
+    private String frontendUrl() {
+        return allowedOrigins.split(",")[0].trim();
+    }
 
     @Transactional
     public BookingDto createBooking(String clientEmail, CreateBookingRequest request) {
@@ -86,7 +108,12 @@ public class BookingService {
             throw new BadRequestException("Trainer is not available at the requested time");
         }
 
-        // Check for conflicting bookings (using Instant comparison with 5-minute buffer)
+        // The free open consultation can be switched off from Admin → Settings.
+        String[] pricePreview = resolveBookingPrice(request.getNotes());
+        if (new java.math.BigDecimal(pricePreview[0]).compareTo(java.math.BigDecimal.ZERO) == 0
+                && !settingsService.getBool("BOOKING_FREE_CONSULTATION_ENABLED", true)) {
+            throw new BadRequestException("The Free Open Consultation is currently unavailable. Please choose a paid session.");
+        }
         Instant bufferStart = request.getStartTime().minus(Duration.ofMinutes(5));
         Instant bufferEnd = request.getEndTime().plus(Duration.ofMinutes(5));
         
@@ -119,8 +146,44 @@ public class BookingService {
         Booking saved = bookingRepository.save(booking);
         log.info("Booking created: ID={}, startTime={} (expert: {}, client: {})", 
                  saved.getId(), saved.getStartTime(), expertZone, clientZone);
-        
+
+        // Notify the expert about the new (pending payment) booking
+        String[] price = resolveBookingPrice(saved.getNotes());
+        notificationService.sendAdminNewBooking(
+            saved.getTrainer().getEmail(),
+            saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
+            saved.getClient().getEmail(),
+            saved.getStartTime().toString(),
+            price[0], price[1]
+        );
+
         return mapToDto(saved);
+    }
+
+    /**
+     * Price for a booking resolved from the configurable settings (USD).
+     * The service type is recorded in the booking notes; the free open
+     * consultation resolves to 0. Public: the payment service uses this to
+     * enforce the admin-managed price server-side, so client-sent amounts
+     * can never override it.
+     */
+    public String[] resolveBookingPrice(String notes) {
+        String currency = "USD";
+        try {
+            var all = settingsService.getAllSettings();
+            currency = all.getOrDefault("BOOKING_CURRENCY", "USD");
+            String amount;
+            if (notes != null && notes.contains("In-Person")) {
+                amount = all.getOrDefault("BOOKING_PRICE_IN_PERSON", "275");
+            } else if (notes != null && notes.contains("Strategy")) {
+                amount = all.getOrDefault("BOOKING_PRICE_STRATEGY_CALL", "125");
+            } else {
+                amount = "0"; // free open consultation
+            }
+            return new String[]{amount, currency};
+        } catch (Exception e) {
+            return new String[]{"0", currency};
+        }
     }
 
     @Transactional(readOnly = true)
@@ -155,26 +218,32 @@ public class BookingService {
         }
 
         booking.setStatus(BookingStatus.CONFIRMED);
-        
+
         // Generate Calendar Event and Meet Link
         // Convert Instant to LocalDateTime in expert's timezone for Calendar API
-        ZoneId expertZone = booking.getTrainer().getZoneId();
-        LocalDateTime startInExpertTz = LocalDateTime.ofInstant(booking.getStartTime(), expertZone);
-        LocalDateTime endInExpertTz = LocalDateTime.ofInstant(booking.getEndTime(), expertZone);
-        
-        String summary = "Consultation: " + booking.getClient().getFirstName() + " & " + booking.getTrainer().getFirstName();
-        CalendarEventDto event = calendarService.createEvent(
-                booking.getTrainer().getId(),
-                summary, 
-                booking.getNotes(), 
-                startInExpertTz,  // Calendar service will use expert timezone
-                endInExpertTz, 
-                booking.getClient().getEmail()
-        );
-        
-        String meetLink = event.getMeetLink(); // Use real Meet link from Google Calendar
-        booking.setMeetLink(meetLink);
-        booking.setExternalEventId(event.getEventId());
+        // Best-effort: if Google is not connected (or the API fails), the booking
+        // still confirms — it just has no Meet link until Google is reconnected.
+        try {
+            ZoneId expertZone = booking.getTrainer().getZoneId();
+            LocalDateTime startInExpertTz = LocalDateTime.ofInstant(booking.getStartTime(), expertZone);
+            LocalDateTime endInExpertTz = LocalDateTime.ofInstant(booking.getEndTime(), expertZone);
+
+            String summary = "Consultation: " + booking.getClient().getFirstName() + " & " + booking.getTrainer().getFirstName();
+            CalendarEventDto event = calendarService.createEvent(
+                    booking.getTrainer().getId(),
+                    summary,
+                    booking.getNotes(),
+                    startInExpertTz,  // Calendar service will use expert timezone
+                    endInExpertTz,
+                    booking.getClient().getEmail()
+            );
+
+            booking.setMeetLink(event.getMeetLink()); // Real Meet link from the Calendar event
+            booking.setExternalEventId(event.getEventId());
+        } catch (Exception e) {
+            log.warn("Google Calendar event creation failed for booking {}: {}. Booking confirmed without Meet link.",
+                id, e.getMessage());
+        }
         
         Booking saved = bookingRepository.save(booking);
 
@@ -184,6 +253,32 @@ public class BookingService {
             saved.getTrainer().getFirstName(),
             saved.getStartTime().toString(),
             "45",
+            saved.getMeetLink()
+        );
+
+        // Notify the expert: consultation confirmed + paid (amount from the completed payment)
+        String[] fallbackPrice = resolveBookingPrice(saved.getNotes());
+        String amount = fallbackPrice[0];
+        String currency = fallbackPrice[1];
+        try {
+            Payment completed = paymentRepository.findByBookingId(saved.getId()).stream()
+                .filter(pay -> pay.getStatus() == PaymentStatus.COMPLETED)
+                .findFirst()
+                .orElse(null);
+            if (completed != null) {
+                amount = completed.getAmount().toPlainString();
+                currency = completed.getCurrency();
+            }
+        } catch (Exception e) {
+            log.warn("Could not load payment amount for admin notification: {}", e.getMessage());
+        }
+        notificationService.sendAdminBookingConfirmed(
+            saved.getTrainer().getEmail(),
+            saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
+            saved.getClient().getEmail(),
+            saved.getStartTime().toString(),
+            amount,
+            currency,
             saved.getMeetLink()
         );
 
@@ -239,81 +334,18 @@ public class BookingService {
             throw new BadRequestException("Only pending or confirmed bookings can be rescheduled");
         }
 
-        if (request.getNewEndTime().isBefore(request.getNewStartTime())) {
-            throw new BadRequestException("End time must be after start time");
-        }
-
-        long durationMinutes = Duration.between(request.getNewStartTime(), request.getNewEndTime()).toMinutes();
-        if (durationMinutes != 45) {
-            throw new BadRequestException("Consultation duration must be exactly 45 minutes");
-        }
-
-        // Get expert timezone and convert instant to local time for availability check
-        ZoneId expertZone = booking.getTrainer().getZoneId();
-        ZonedDateTime startInExpertTz = request.getNewStartTime().atZone(expertZone);
-        ZonedDateTime endInExpertTz = request.getNewEndTime().atZone(expertZone);
-
-        // Check if within availability
-        DayOfWeek dayOfWeek = startInExpertTz.getDayOfWeek();
-        List<Availability> availabilities = availabilityRepository.findByTrainerId(booking.getTrainer().getId());
-        
-        boolean isAvailable = availabilities.stream().anyMatch(a -> {
-            if (a.isRecurring() && a.getDayOfWeek() == dayOfWeek) {
-                return !startInExpertTz.toLocalTime().isBefore(a.getStartTime()) &&
-                       !endInExpertTz.toLocalTime().isAfter(a.getEndTime());
-            } else if (!a.isRecurring() && a.getSpecificDate() != null && a.getSpecificDate().equals(startInExpertTz.toLocalDate())) {
-                return !startInExpertTz.toLocalTime().isBefore(a.getStartTime()) &&
-                       !endInExpertTz.toLocalTime().isAfter(a.getEndTime());
-            }
-            return false;
-        });
-
-        if (!isAvailable) {
-            throw new BadRequestException("Trainer is not available at the requested time");
-        }
-
-        // Check for conflicting bookings (using Instant with buffer)
-        Instant bufferStart = request.getNewStartTime().minus(Duration.ofMinutes(5));
-        Instant bufferEnd = request.getNewEndTime().plus(Duration.ofMinutes(5));
-        
-        List<Booking> conflicts = bookingRepository.findConflictingBookings(
-                booking.getTrainer().getId(), 
-                bufferStart, 
-                bufferEnd
-        );
-        
-        boolean hasConflict = conflicts.stream()
-            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED && !b.getId().equals(booking.getId()));
-            
-        if (hasConflict) {
-            throw new BadRequestException("The requested time slot is not available due to conflicts");
-        }
+        validateNewTime(booking.getTrainer(), booking.getId(),
+            request.getNewStartTime(), request.getNewEndTime());
 
         Instant oldStartTime = booking.getStartTime();
         booking.setStartTime(request.getNewStartTime());
         booking.setEndTime(request.getNewEndTime());
+        booking.setRescheduleCount(booking.getRescheduleCount() + 1);
 
         Booking saved = bookingRepository.save(booking);
 
-        if (saved.getStatus() == BookingStatus.CONFIRMED && saved.getExternalEventId() != null) {
-            try {
-                // Convert to expert's local time for Calendar API
-                LocalDateTime newStartInExpertTz = LocalDateTime.ofInstant(saved.getStartTime(), expertZone);
-                LocalDateTime newEndInExpertTz = LocalDateTime.ofInstant(saved.getEndTime(), expertZone);
-                
-                calendarService.updateEvent(
-                    saved.getTrainer().getId(), 
-                    saved.getExternalEventId(), 
-                    null, 
-                    null, 
-                    newStartInExpertTz, 
-                    newEndInExpertTz
-                );
-            } catch (Exception e) {
-                System.err.println("Failed to update Google Calendar event: " + e.getMessage());
-            }
-        }
-        
+        updateCalendarEvent(saved);
+
         notificationService.sendBookingRescheduled(
             saved.getClient().getEmail(),
             saved.getClient().getFirstName(),
@@ -324,6 +356,226 @@ public class BookingService {
         );
 
         return mapToDto(saved);
+    }
+
+    /**
+     * Admin action: closes a confirmed session as delivered/ended. Used for
+     * sessions the expert finished (the scheduler auto-completes most of
+     * these; this covers the rest).
+     */
+    @Transactional
+    public BookingDto completeSession(Long id) {
+        Booking booking = bookingRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+
+        if (booking.getStatus() == BookingStatus.COMPLETED) {
+            return mapToDto(booking); // idempotent
+        }
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BadRequestException("Only confirmed sessions can be marked as completed");
+        }
+
+        booking.setStatus(BookingStatus.COMPLETED);
+        Booking saved = bookingRepository.save(booking);
+        log.info("Booking {} marked as completed by admin", id);
+        return mapToDto(saved);
+    }
+
+    /**
+     * Marks a delivered-window session as a no-show. When the expert attended,
+     * the client's payment is kept as credit with a one-time reschedule link;
+     * when the expert missed it too, the email offers a full refund or a free
+     * rebooking and the admin is flagged to process the refund.
+     */
+    @Transactional
+    public BookingDto markNoShow(Long id, boolean expertAttended, String note) {
+        Booking booking = bookingRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.COMPLETED) {
+            throw new BadRequestException("Only confirmed or completed sessions can be marked as a no-show");
+        }
+
+        booking.setStatus(BookingStatus.NO_SHOW);
+        booking.setExpertAttended(expertAttended);
+        booking.setNoShowNote(note);
+        booking.setRescheduleToken(UUID.randomUUID().toString().replace("-", ""));
+        int windowDays = Math.max(1, settingsService.getInt("RESCHEDULE_WINDOW_DAYS", (int) RESCHEDULE_WINDOW.toDays()));
+        booking.setRescheduleExpiresAt(Instant.now().plus(Duration.ofDays(windowDays)));
+
+        Booking saved = bookingRepository.save(booking);
+
+        String dateTime = DateTimeUtils.formatForDisplay(saved.getStartTime());
+        String rescheduleUrl = frontendUrl() + "/reschedule?token=" + saved.getRescheduleToken();
+        String expiresOn = DATE_FORMAT.format(LocalDate.now().plusDays(windowDays));
+
+        notificationService.sendClientNoShow(
+            saved.getClient().getEmail(),
+            saved.getClient().getFirstName(),
+            dateTime,
+            rescheduleUrl,
+            expiresOn,
+            expertAttended
+        );
+
+        notificationService.sendAdminNoShow(
+            saved.getTrainer().getEmail(),
+            saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
+            saved.getClient().getEmail(),
+            dateTime,
+            expertAttended,
+            note,
+            !expertAttended
+        );
+
+        log.info("Booking {} marked as no-show (expertAttended={}); reschedule link emailed to {}",
+            id, expertAttended, saved.getClient().getEmail());
+        return mapToDto(saved);
+    }
+
+    /** Public (token-protected) summary for the /reschedule page. */
+    @Transactional(readOnly = true)
+    public RescheduleLinkSummaryDto getRescheduleLink(String token) {
+        Booking booking = requireValidRescheduleToken(token);
+        return RescheduleLinkSummaryDto.builder()
+            .bookingId(booking.getId())
+            .clientFirstName(booking.getClient().getFirstName())
+            .trainerName(booking.getTrainer().getFirstName() + " " + booking.getTrainer().getLastName())
+            .originalStartTime(booking.getStartTime())
+            .rescheduleExpiresAt(booking.getRescheduleExpiresAt())
+            .clientTimezone(booking.getClientTimezone())
+            .expertAttended(booking.getExpertAttended())
+            .build();
+    }
+
+    /** Trainer behind a reschedule token — for the public slots endpoint. */
+    @Transactional(readOnly = true)
+    public Long getTrainerIdForRescheduleToken(String token) {
+        return requireValidRescheduleToken(token).getTrainer().getId();
+    }
+
+    /**
+     * Client self-reschedule through the emailed one-time link (no sign-in
+     * required). The session was already paid, so the booking goes straight
+     * back to CONFIRMED at the new time and the token is consumed.
+     */
+    @Transactional
+    public BookingDto rescheduleByToken(String token, RescheduleBookingRequest request) {
+        Booking booking = requireValidRescheduleToken(token);
+
+        if (request.getNewStartTime().isBefore(Instant.now())) {
+            throw new BadRequestException("Please choose a future time slot.");
+        }
+
+        validateNewTime(booking.getTrainer(), booking.getId(),
+            request.getNewStartTime(), request.getNewEndTime());
+
+        Instant oldStartTime = booking.getStartTime();
+        booking.setStartTime(request.getNewStartTime());
+        booking.setEndTime(request.getNewEndTime());
+        booking.setStatus(BookingStatus.CONFIRMED); // paid session — re-confirmed at the new time
+        booking.setRescheduleCount(booking.getRescheduleCount() + 1);
+        booking.setRescheduleToken(null);           // one-time link: consume it
+        booking.setRescheduleExpiresAt(null);
+
+        Booking saved = bookingRepository.save(booking);
+
+        updateCalendarEvent(saved);
+
+        notificationService.sendBookingRescheduled(
+            saved.getClient().getEmail(),
+            saved.getClient().getFirstName(),
+            saved.getTrainer().getFirstName(),
+            oldStartTime.toString(),
+            saved.getStartTime().toString(),
+            saved.getMeetLink()
+        );
+        notificationService.sendBookingConfirmation(
+            saved.getTrainer().getEmail(),
+            saved.getTrainer().getFirstName(),
+            "rescheduled session with " + saved.getClient().getFirstName(),
+            saved.getStartTime().toString(),
+            "45",
+            saved.getMeetLink()
+        );
+
+        log.info("Booking {} rescheduled by client via one-time link", booking.getId());
+        return mapToDto(saved);
+    }
+
+    private Booking requireValidRescheduleToken(String token) {
+        Booking booking = bookingRepository.findByRescheduleToken(token)
+            .orElseThrow(() -> new ResourceNotFoundException("Reschedule link", "token", "invalid"));
+        if (booking.getStatus() != BookingStatus.NO_SHOW) {
+            throw new BadRequestException("This reschedule link is no longer active.");
+        }
+        if (booking.getRescheduleExpiresAt() != null && Instant.now().isAfter(booking.getRescheduleExpiresAt())) {
+            throw new BadRequestException("This reschedule link has expired. Please contact us to book again.");
+        }
+        return booking;
+    }
+
+    /** Shared validation for any new booking time: duration, availability, conflicts. */
+    private void validateNewTime(User trainer, Long excludeBookingId, Instant newStart, Instant newEnd) {
+        if (newEnd.isBefore(newStart)) {
+            throw new BadRequestException("End time must be after start time");
+        }
+        long durationMinutes = Duration.between(newStart, newEnd).toMinutes();
+        if (durationMinutes != 45) {
+            throw new BadRequestException("Consultation duration must be exactly 45 minutes");
+        }
+
+        ZoneId expertZone = trainer.getZoneId();
+        ZonedDateTime startInExpertTz = newStart.atZone(expertZone);
+        ZonedDateTime endInExpertTz = newEnd.atZone(expertZone);
+
+        DayOfWeek dayOfWeek = startInExpertTz.getDayOfWeek();
+        List<com.gymholic.availability.entity.Availability> availabilities =
+            availabilityRepository.findByTrainerId(trainer.getId());
+
+        boolean isAvailable = availabilities.stream().anyMatch(a -> {
+            if (a.isRecurring() && a.getDayOfWeek() == dayOfWeek) {
+                return !startInExpertTz.toLocalTime().isBefore(a.getStartTime()) &&
+                       !endInExpertTz.toLocalTime().isAfter(a.getEndTime());
+            } else if (!a.isRecurring() && a.getSpecificDate() != null && a.getSpecificDate().equals(startInExpertTz.toLocalDate())) {
+                return !startInExpertTz.toLocalTime().isBefore(a.getStartTime()) &&
+                       !endInExpertTz.toLocalTime().isAfter(a.getEndTime());
+            }
+            return false;
+        });
+        if (!isAvailable) {
+            throw new BadRequestException("Trainer is not available at the requested time");
+        }
+
+        Instant bufferStart = newStart.minus(Duration.ofMinutes(5));
+        Instant bufferEnd = newEnd.plus(Duration.ofMinutes(5));
+        List<Booking> conflicts = bookingRepository.findConflictingBookings(
+            trainer.getId(), bufferStart, bufferEnd);
+        boolean hasConflict = conflicts.stream()
+            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED && !b.getId().equals(excludeBookingId));
+        if (hasConflict) {
+            throw new BadRequestException("The requested time slot is not available due to conflicts");
+        }
+    }
+
+    /** Best-effort sync of the booking's new time to the Google Calendar event. */
+    private void updateCalendarEvent(Booking booking) {
+        if (booking.getStatus() == BookingStatus.CONFIRMED && booking.getExternalEventId() != null) {
+            try {
+                ZoneId expertZone = booking.getTrainer().getZoneId();
+                calendarService.updateEvent(
+                    booking.getTrainer().getId(),
+                    booking.getExternalEventId(),
+                    null,
+                    null,
+                    LocalDateTime.ofInstant(booking.getStartTime(), expertZone),
+                    LocalDateTime.ofInstant(booking.getEndTime(), expertZone)
+                );
+            } catch (Exception e) {
+                log.warn("Failed to update Google Calendar event for booking {}: {}",
+                    booking.getId(), e.getMessage());
+            }
+        }
     }
 
     private BookingDto mapToDto(Booking booking) {
@@ -343,6 +595,9 @@ public class BookingService {
             .notes(booking.getNotes())
             .meetLink(booking.getMeetLink())
             .externalEventId(booking.getExternalEventId())
+            .expertAttended(booking.getExpertAttended())
+            .noShowNote(booking.getNoShowNote())
+            .rescheduleCount(booking.getRescheduleCount())
             .createdAt(booking.getCreatedAt())
             .build();
     }

@@ -12,16 +12,17 @@ export type ConsultationService = {
   cta: string;
 };
 
-// Note: the source spec had a stray "2500" next to the Discovery Call while
-// three separate lines around it explicitly say "Free" / "FREE" — treated
-// as a typo, kept as the free intro call the rest of the spec describes.
+// Defaults mirror the backend settings (BOOKING_PRICE_STRATEGY_CALL=125,
+// BOOKING_PRICE_IN_PERSON=275, BOOKING_CURRENCY=USD). The book page replaces
+// price/currency at runtime with the live values from GET /api/settings/pricing
+// so admin price changes are reflected on the website immediately.
 export const consultationServices: ConsultationService[] = [
   {
     id: "strategy-call",
     name: "45-Minute Strategy Call",
     shortLabel: "45 Min Strategy Call",
-    price: 500,
-    currency: "AED",
+    price: 125,
+    currency: "USD",
     isFree: false,
     durationLabel: "45 Minutes",
     meetingType: "Online",
@@ -43,8 +44,8 @@ export const consultationServices: ConsultationService[] = [
     id: "in-person",
     name: "Private In-Person Consultation",
     shortLabel: "Private In-Person",
-    price: 1000,
-    currency: "AED",
+    price: 275,
+    currency: "USD",
     isFree: false,
     durationLabel: "Private Meeting",
     meetingType: "In Person",
@@ -54,16 +55,16 @@ export const consultationServices: ConsultationService[] = [
   },
   {
     id: "discovery-call",
-    name: "Free Discovery Call",
-    shortLabel: "Free Discovery Call",
+    name: "Free Open Consultation",
+    shortLabel: "Free Open Consultation",
     price: 0,
-    currency: "AED",
+    currency: "USD",
     isFree: true,
-    durationLabel: "Introductory Call",
+    durationLabel: "Open Time",
     meetingType: "Online",
     description:
-      "A quick call to understand your situation, identify what you need, and determine whether Gymholic can help.",
-    cta: "Book Free Call",
+      "A free open consultation over Google Meet with open time — join the meeting, bring your questions and get guidance on where to start.",
+    cta: "Book Free Open Consultation",
   },
 ];
 
