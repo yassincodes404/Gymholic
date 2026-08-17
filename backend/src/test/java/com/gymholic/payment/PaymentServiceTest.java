@@ -6,6 +6,7 @@ import com.gymholic.common.enums.PaymentStatus;
 import com.gymholic.payment.entity.Payment;
 import com.gymholic.notification.NotificationService;
 import com.gymholic.payment.provider.PaymentProvider;
+import com.gymholic.payment.provider.PaymentProviderConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +43,13 @@ public class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         when(paymobProvider.getProviderName()).thenReturn("paymob");
-        paymentService = new PaymentService(paymentRepository, null, bookingService, notificationService, List.of(paymobProvider));
+        paymentService = new PaymentService(
+            paymentRepository,
+            null,
+            bookingService,
+            notificationService,
+            List.of(paymobProvider),
+            mock(PaymentProviderConfigService.class));
     }
 
     @Test

@@ -5,8 +5,7 @@ export type BookingPricing = {
   currency: string;
   strategyCall: number;
   inPerson: number;
-  discovery: number;
-  freeConsultationEnabled?: boolean;
+  openSession: number;
   academyMembershipPrice?: number;
   academyPrePurchaseEnabled?: boolean;
 };
@@ -14,7 +13,8 @@ export type BookingPricing = {
 /**
  * Live booking prices from GET /api/settings/pricing (public). These are the
  * admin-managed values (Admin → Settings); when the admin changes a price,
- * the website shows and charges the new amount immediately.
+ * the website shows and charges the new amount immediately. All services are
+ * paid, including the open time session.
  */
 export async function fetchBookingPricing(): Promise<BookingPricing | null> {
   try {
@@ -36,18 +36,16 @@ export function applyPricing(
   services: ConsultationService[],
   pricing: BookingPricing
 ): ConsultationService[] {
-  const priced = services.map((service) => {
+  return services.map((service) => {
     if (service.id === "strategy-call") {
-      return { ...service, price: pricing.strategyCall, currency: pricing.currency ?? service.currency, isFree: pricing.strategyCall <= 0 };
+      return { ...service, price: pricing.strategyCall, currency: pricing.currency ?? service.currency };
     }
     if (service.id === "in-person") {
-      return { ...service, price: pricing.inPerson, currency: pricing.currency ?? service.currency, isFree: pricing.inPerson <= 0 };
+      return { ...service, price: pricing.inPerson, currency: pricing.currency ?? service.currency };
     }
-    return service; // free open consultation stays free
+    if (service.id === "discovery-call") {
+      return { ...service, price: pricing.openSession, currency: pricing.currency ?? service.currency };
+    }
+    return service;
   });
-  // The free open consultation can be switched off by the admin.
-  if (pricing.freeConsultationEnabled === false) {
-    return priced.filter((service) => !service.isFree);
-  }
-  return priced;
 }

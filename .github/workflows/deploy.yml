@@ -8,11 +8,17 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# Queue production deploys instead of cancelling a mid-flight one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     # Only deploy if the CI workflow actually succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
       - name: Checkout repository
@@ -83,21 +89,51 @@ jobs:
               exit 1
             fi
 
-            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime pull
-            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime up -d --remove-orphans
-            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime ps
+            COMPOSE_FILES="-f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml"
 
-            for i in $(seq 1 20); do
+            # Pull with one retry — transient registry hiccups shouldn't fail the deploy.
+            docker compose $COMPOSE_FILES --env-file .env.runtime pull || {
+              echo "Pull failed once, retrying in 15s…"
+              sleep 15
+              docker compose $COMPOSE_FILES --env-file .env.runtime pull
+            }
+
+            docker compose $COMPOSE_FILES --env-file .env.runtime up -d --remove-orphans
+            docker compose $COMPOSE_FILES --env-file .env.runtime ps
+
+            # Spring Boot + Flyway migrations can take a while on small VPSes:
+            # poll up to ~4 minutes before declaring the deploy failed.
+            healthy=0
+            for i in $(seq 1 48); do
               status="$(docker inspect --format='{{.State.Health.Status}}' gymholic-backend 2>/dev/null || true)"
               if [ "$status" = "healthy" ]; then
+                healthy=1
                 break
               fi
-              if [ "$i" = "20" ]; then
+              if [ "$i" = "48" ]; then
                 echo "Backend did not become healthy. Current status: ${status:-unknown}"
-                docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime logs --tail=100 backend
+                docker compose $COMPOSE_FILES --env-file .env.runtime logs --tail=100 backend
                 exit 1
               fi
               sleep 5
             done
 
-            docker compose -f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml --env-file .env.runtime exec -T nginx sh -lc "wget -q --spider http://127.0.0.1/ && wget -q --spider http://127.0.0.1/actuator/health"
+            # Next.js starts fast, but give it a short grace period too.
+            fe_healthy=0
+            for i in $(seq 1 12); do
+              status="$(docker inspect --format='{{.State.Health.Status}}' gymholic-frontend 2>/dev/null || true)"
+              if [ "$status" = "healthy" ]; then
+                fe_healthy=1
+                break
+              fi
+              if [ "$i" = "12" ]; then
+                echo "Frontend did not become healthy. Current status: ${status:-unknown}"
+                docker compose $COMPOSE_FILES --env-file .env.runtime logs --tail=50 frontend
+                exit 1
+              fi
+              sleep 5
+            done
+
+            docker compose $COMPOSE_FILES --env-file .env.runtime exec -T backend curl -fsS http://127.0.0.1:8080/actuator/health >/dev/null
+            docker compose $COMPOSE_FILES --env-file .env.runtime exec -T frontend wget -q --spider http://127.0.0.1:3000/
+            echo "Deploy of ${IMAGE_TAG} completed successfully."

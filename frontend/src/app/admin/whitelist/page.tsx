@@ -21,7 +21,7 @@ const SOURCE_STYLES: Record<string, string> = {
   ACADEMY: "bg-purple-500/15 text-purple-400",
   ACADEMY_PREPURCHASE: "bg-emerald-500/15 text-emerald-400",
   BLUEPRINTS: "bg-blue-500/15 text-blue-400",
-  GENERAL: "bg-neutral-700/40 text-neutral-300",
+  GENERAL: "bg-paper/10 text-paper/75",
 };
 
 export default function AdminWhitelistPage() {
@@ -59,11 +59,11 @@ export default function AdminWhitelistPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Whitelist</h1>
-          <p className="text-neutral-400 text-sm mt-1">
+          <p className="text-paper/60 text-sm mt-1">
             People to notify when Academy and upcoming features launch.
           </p>
         </div>
-        <span className="text-sm text-neutral-400">{entries.length} signups</span>
+        <span className="text-sm text-paper/60">{entries.length} signups</span>
       </div>
 
       {error && (
@@ -71,16 +71,16 @@ export default function AdminWhitelistPage() {
       )}
 
       {loading ? (
-        <p className="text-neutral-400">Loading whitelist…</p>
+        <p className="text-paper/60">Loading whitelist…</p>
       ) : entries.length === 0 ? (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-10 text-center text-neutral-400">
+        <div className="bg-surface border border-paper/10 rounded-xl p-10 text-center text-paper/60">
           No waitlist signups yet.
         </div>
       ) : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-x-auto">
+        <div className="bg-surface border border-paper/10 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-neutral-500 text-xs uppercase tracking-wider border-b border-neutral-800">
+              <tr className="text-paper/50 text-xs uppercase tracking-wider border-b border-paper/10">
                 <th className="text-left px-5 py-3">Name</th>
                 <th className="text-left px-5 py-3">Email</th>
                 <th className="text-left px-5 py-3">Source</th>
@@ -88,17 +88,17 @@ export default function AdminWhitelistPage() {
                 <th className="text-right px-5 py-3">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800">
+            <tbody className="divide-y divide-paper/10">
               {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-neutral-800/40">
+                <tr key={entry.id} className="hover:bg-paper/5">
                   <td className="px-5 py-3 font-medium">{entry.name || "—"}</td>
-                  <td className="px-5 py-3 text-neutral-300">{entry.email}</td>
+                  <td className="px-5 py-3 text-paper/75">{entry.email}</td>
                   <td className="px-5 py-3">
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${SOURCE_STYLES[entry.source] ?? SOURCE_STYLES.GENERAL}`}>
                       {entry.source}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-neutral-400 text-xs">
+                  <td className="px-5 py-3 text-paper/60 text-xs">
                     {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—"}
                   </td>
                   <td className="px-5 py-3 text-right">

@@ -53,56 +53,56 @@ export default function AdminAssessmentsPage() {
       )}
 
       {loading ? (
-        <p className="text-neutral-400">Loading assessments…</p>
+        <p className="text-paper/60">Loading assessments…</p>
       ) : assessments.length === 0 ? (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-10 text-center text-neutral-400">
+        <div className="bg-surface border border-paper/10 rounded-xl p-10 text-center text-paper/60">
           No assessments submitted yet.
         </div>
       ) : (
         <div className="space-y-3">
           {assessments.map((a) => (
-            <div key={a.id} className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+            <div key={a.id} className="bg-surface border border-paper/10 rounded-xl overflow-hidden">
               <button
                 onClick={() => setOpenId(openId === a.id ? null : a.id)}
-                className="w-full text-left px-5 py-4 flex items-center justify-between gap-4 hover:bg-neutral-800/40 transition-colors"
+                className="w-full text-left px-5 py-4 flex items-center justify-between gap-4 hover:bg-paper/5 transition-colors"
               >
                 <div>
                   <p className="font-medium">{a.fullName || a.email || "Unknown"}</p>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-paper/50">
                     {pretty(a.userType)} · {a.email ?? "no email"} · {pretty(a.status)}
                   </p>
                 </div>
-                <span className="text-neutral-500 text-sm">{openId === a.id ? "▲" : "▼"}</span>
+                <span className="text-paper/50 text-sm">{openId === a.id ? "▲" : "▼"}</span>
               </button>
               {openId === a.id && (
-                <dl className="px-5 pb-5 grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm border-t border-neutral-800 pt-4">
+                <dl className="px-5 pb-5 grid md:grid-cols-2 gap-x-8 gap-y-3 text-sm border-t border-paper/10 pt-4">
                   <div>
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">Business Stage</dt>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">Business Stage</dt>
                     <dd>{pretty(a.currentStage)}</dd>
                   </div>
                   <div>
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">Timing</dt>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">Timing</dt>
                     <dd>{pretty(a.startTiming)}</dd>
                   </div>
                   <div>
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">Meeting Preference</dt>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">Meeting Preference</dt>
                     <dd>{pretty(a.preferredConsultation)}</dd>
                   </div>
                   <div>
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">Language</dt>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">Language</dt>
                     <dd>{pretty(a.preferredLanguage)}</dd>
                   </div>
                   <div>
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">WhatsApp</dt>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">WhatsApp</dt>
                     <dd>{a.whatsapp ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">Submitted</dt>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">Submitted</dt>
                     <dd>{a.createdAt ? new Date(a.createdAt).toLocaleString() : "—"}</dd>
                   </div>
                   <div className="md:col-span-2">
-                    <dt className="text-neutral-500 text-xs uppercase tracking-wider">Situation</dt>
-                    <dd className="text-neutral-300 whitespace-pre-wrap">{a.situation || "—"}</dd>
+                    <dt className="text-paper/50 text-xs uppercase tracking-wider">Situation</dt>
+                    <dd className="text-paper/75 whitespace-pre-wrap">{a.situation || "—"}</dd>
                   </div>
                 </dl>
               )}

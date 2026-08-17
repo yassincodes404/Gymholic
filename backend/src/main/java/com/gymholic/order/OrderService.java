@@ -131,9 +131,9 @@ public class OrderService {
 
     private void notify(User user, Order order, List<OrderItem> items) {
         try {
-            String amount = "$" + order.getTotal().toPlainString() + " " + order.getCurrency();
+            String amount = order.getTotal().toPlainString() + " " + order.getCurrency();
             String itemsList = items.stream()
-                .map(i -> "- " + i.getTitle() + " ($" + i.getUnitPrice().toPlainString() + ")")
+                .map(i -> "- " + i.getTitle() + " (" + i.getUnitPrice().toPlainString() + " " + order.getCurrency() + ")")
                 .reduce((a, b) -> a + "\n" + b)
                 .orElse("");
             notificationService.sendOrderConfirmation(

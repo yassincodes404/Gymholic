@@ -27,6 +27,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
     private final AdminBootstrapService adminBootstrapService;
+    private final EmailVerificationService emailVerificationService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -44,6 +45,12 @@ public class AuthService {
             .build();
 
         User savedUser = userRepository.save(user);
+
+        // New accounts confirm their email with a one-time code before
+        // any tokens (or payments) are issued.
+        if (emailVerificationService.isVerificationRequired() && !savedUser.isEmailVerified()) {
+            return emailVerificationService.issueChallenge(savedUser, "register");
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(savedUser.getEmail());
         String accessToken = jwtService.generateToken(userDetails);
@@ -63,6 +70,10 @@ public class AuthService {
             .orElseThrow();
 
         adminBootstrapService.promoteIfBootstrapEmail(user.getEmail());
+
+        if (emailVerificationService.isVerificationRequired() && !user.isEmailVerified()) {
+            return emailVerificationService.issueChallenge(user, "login");
+        }
 
         String accessToken = jwtService.generateToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);
@@ -94,6 +105,7 @@ public class AuthService {
             .firstName(user.getFirstName())
             .lastName(user.getLastName())
             .role(user.getRole())
+            .emailVerified(user.isEmailVerified())
             .build();
     }
 }

@@ -27,6 +27,11 @@ public final class DateTimeUtils {
         return zdt.format(DISPLAY_FORMAT.withZone(ZoneId.of("UTC")));
     }
 
+    /** Formats an instant in the recipient's timezone for emails. */
+    public static String formatForDisplay(Instant instant, ZoneId zone) {
+        return DISPLAY_FORMAT.withZone(zone).format(instant);
+    }
+
     public static String formatISO(LocalDateTime dateTime) {
         return dateTime.format(ISO_FORMAT);
     }

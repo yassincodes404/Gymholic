@@ -11,7 +11,7 @@ import { adminFetch, type AdminUserRow } from "@/lib/adminApi";
 const ROLE_STYLES: Record<AdminUserRow["role"], string> = {
   ADMIN: "bg-purple-500/15 text-purple-400",
   TRAINER: "bg-blue-500/15 text-blue-400",
-  CLIENT: "bg-neutral-700/40 text-neutral-300",
+  CLIENT: "bg-paper/10 text-paper/75",
 };
 
 export default function AdminCustomersPage() {
@@ -52,7 +52,7 @@ export default function AdminCustomersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name or email…"
-          className="bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-neutral-600"
+          className="bg-surface border border-paper/15 rounded-lg px-3 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-orange/60"
         />
       </div>
 
@@ -61,12 +61,12 @@ export default function AdminCustomersPage() {
       )}
 
       {loading ? (
-        <p className="text-neutral-400">Loading customers…</p>
+        <p className="text-paper/60">Loading customers…</p>
       ) : (
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-x-auto">
+        <div className="bg-surface border border-paper/10 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-neutral-500 text-xs uppercase tracking-wider border-b border-neutral-800">
+              <tr className="text-paper/50 text-xs uppercase tracking-wider border-b border-paper/10">
                 <th className="text-left px-5 py-3">Name</th>
                 <th className="text-left px-5 py-3">Email</th>
                 <th className="text-left px-5 py-3">Role</th>
@@ -74,24 +74,24 @@ export default function AdminCustomersPage() {
                 <th className="text-left px-5 py-3">Joined</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800">
+            <tbody className="divide-y divide-paper/10">
               {filtered.map((u) => (
-                <tr key={u.id} className="hover:bg-neutral-800/40">
+                <tr key={u.id} className="hover:bg-paper/5">
                   <td className="px-5 py-3 font-medium">
                     {u.firstName} {u.lastName}
                   </td>
-                  <td className="px-5 py-3 text-neutral-300">{u.email}</td>
+                  <td className="px-5 py-3 text-paper/75">{u.email}</td>
                   <td className="px-5 py-3">
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${ROLE_STYLES[u.role]}`}>
                       {u.role}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-neutral-300 text-xs">
+                  <td className="px-5 py-3 text-paper/75 text-xs">
                     {carts[u.id]?.count
                       ? `${carts[u.id].count} item${carts[u.id].count > 1 ? "s" : ""} · $${carts[u.id].subtotal}`
                       : "—"}
                   </td>
-                  <td className="px-5 py-3 text-neutral-400 text-xs">
+                  <td className="px-5 py-3 text-paper/60 text-xs">
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
                   </td>
                 </tr>

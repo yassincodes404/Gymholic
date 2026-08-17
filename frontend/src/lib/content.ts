@@ -297,7 +297,7 @@ export const faqs = [
   },
   {
     q: "Is the consultation free or paid?",
-    a: "The initial qualification and discovery call is free — it is how we determine the most suitable next step together.",
+    a: "All sessions are paid, including the Open Time Session — an online Google Meet session where you pick any available slot. Prices are listed on the booking page at checkout.",
   },
   {
     q: "What information should I prepare before the call?",

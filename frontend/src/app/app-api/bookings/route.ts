@@ -15,7 +15,7 @@ type BookingBody = {
 
 /**
  * The one place a slot actually gets locked. Called only after payment
- * succeeds (or immediately for the free call) — never on merely clicking a
+ * succeeds — never on merely clicking a
  * time slot, per spec. `setIfNotExists` is the atomic check: if two people
  * raced for the same slot, only the first write wins and the second gets a
  * 409 here, telling the client to pick another time.
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     dateLabel: body.dateLabel,
     time: body.time,
     details: body.details,
-    price: service.isFree ? 0 : service.price,
+    price: service.price,
     currency: service.currency,
     meetingType: service.meetingType,
     createdAt: new Date().toISOString(),
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     time: body.time,
     duration: service.durationLabel,
     meetingType: service.meetingType,
-    price: service.isFree ? "Free" : `${service.price} ${service.currency}`,
+    price: `${service.price} ${service.currency}`,
     bookingRef,
   });
 

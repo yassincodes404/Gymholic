@@ -66,6 +66,16 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
+    /**
+     * Whether the user confirmed ownership of their email address with a
+     * one-time code (sign-up / sign-in confirmation). Payments and bookings
+     * are blocked until this is true. Existing accounts were grandfathered
+     * as verified when the feature shipped.
+     */
+    @Builder.Default
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

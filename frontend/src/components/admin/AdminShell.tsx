@@ -60,23 +60,23 @@ export function AdminShell({
 
   if (checking) {
     return (
-      <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center">
-        <p className="text-neutral-400">Loading admin…</p>
+      <main className="min-h-screen bg-void text-paper flex items-center justify-center">
+        <p className="text-paper/60">Loading admin…</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 bg-neutral-900/50">
+    <main className="min-h-screen bg-void text-paper">
+      <header className="border-b border-paper/10 bg-surface/60 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold tracking-tight">GymHolic Admin</h1>
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-neutral-400">
+            <span className="text-paper/60">
               {user ? `${user.firstName} ${user.lastName}` : "Admin"}
             </span>
             <button onClick={() => { logout(); router.push("/admin/login"); }}
-              className="text-neutral-300 border border-neutral-700 rounded-lg px-3 py-1.5 hover:bg-neutral-800 transition-colors">
+              className="text-paper/75 border border-paper/15 rounded-lg px-3 py-1.5 hover:bg-paper/10 transition-colors">
               Sign out
             </button>
           </div>
@@ -86,8 +86,8 @@ export function AdminShell({
             <Link key={item.href} href={item.href}
               className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-colors ${
                 item.href === activeHref
-                  ? "bg-neutral-800 text-neutral-100"
-                  : "text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
+                  ? "bg-orange-dim text-orange"
+                  : "text-paper/60 hover:bg-paper/5 hover:text-paper/90"
               }`}>
               {item.label}
             </Link>

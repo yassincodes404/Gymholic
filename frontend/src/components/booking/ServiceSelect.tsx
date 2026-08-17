@@ -27,7 +27,7 @@ export function ServiceSelect({
             <h3 className="display-text text-xl mb-3">{service.name}</h3>
             <p className="text-sm opacity-70 mb-6 flex-1">{service.description}</p>
             <p className="display-text text-2xl mb-4" style={{ color: "var(--orange)" }}>
-              {service.isFree ? "Free" : `${service.price} ${service.currency}`}
+              {service.price} {service.currency}
             </p>
             <span className="btn-pill w-fit text-sm">{service.cta}</span>
           </button>

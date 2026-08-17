@@ -46,7 +46,7 @@ const BOOKING_STATUS_STYLES: Record<BookingItem["status"], string> = {
   CONFIRMED: "bg-emerald-500/15 text-emerald-400",
   COMPLETED: "bg-blue-500/15 text-blue-400",
   CANCELLED: "bg-red-500/15 text-red-400",
-  NO_SHOW: "bg-neutral-500/15 text-neutral-400",
+  NO_SHOW: "bg-paper/10 text-paper/60",
 };
 
 const PAYMENT_STATUS_STYLES: Record<string, string> = {
@@ -152,25 +152,25 @@ export default function AccountPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center">
-        <p className="text-neutral-400">Loading your account…</p>
+      <main className="min-h-screen bg-void text-paper flex items-center justify-center">
+        <p className="text-paper/60">Loading your account…</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 px-6 py-12">
+    <main className="min-h-screen bg-void text-paper px-6 py-12">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-start justify-between mb-10">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
               Welcome back{user ? `, ${user.firstName}` : ""}
             </h1>
-            <p className="text-neutral-400 mt-1">{user?.email}</p>
+            <p className="text-paper/60 mt-1">{user?.email}</p>
           </div>
           <div className="flex gap-3">
             <Link href="/book"
-              className="bg-white text-neutral-950 font-medium rounded-lg px-4 py-2 hover:bg-neutral-200 transition-colors">
+              className="bg-orange text-void font-medium rounded-full px-5 py-2 hover:bg-orange/90 transition-colors">
               Book a Call
             </Link>
             <button
@@ -178,7 +178,7 @@ export default function AccountPage() {
                 logout();
                 router.push("/login");
               }}
-              className="border border-neutral-700 rounded-lg px-4 py-2 hover:bg-neutral-800 transition-colors">
+              className="border border-paper/15 rounded-lg px-4 py-2 hover:bg-paper/10 transition-colors">
               Sign out
             </button>
           </div>
@@ -190,13 +190,13 @@ export default function AccountPage() {
 
         {upcoming.length > 0 && (
           <section className="mb-10">
-            <h2 className="text-sm uppercase tracking-wider text-neutral-500 mb-4">Next consultation</h2>
+            <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Next consultation</h2>
             {upcoming.map((b) => (
               <div key={b.id}
-                className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+                className="bg-surface border border-paper/10 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="font-semibold text-lg">{formatWhen(b.startTime)}</p>
-                  <p className="text-sm text-neutral-400">
+                  <p className="text-sm text-paper/60">
                     with {b.trainerName} · 45 min
                     {b.meetingTimezone ? ` · ${b.meetingTimezone}` : ""}
                   </p>
@@ -207,7 +207,7 @@ export default function AccountPage() {
                   </span>
                   {b.status === "CONFIRMED" && b.meetLink && (
                     <a href={b.meetLink} target="_blank" rel="noreferrer"
-                      className="bg-white text-neutral-950 font-medium rounded-lg px-4 py-2 hover:bg-neutral-200 transition-colors">
+                      className="bg-orange text-void font-medium rounded-full px-5 py-2 hover:bg-orange/90 transition-colors">
                       Join Meeting
                     </a>
                   )}
@@ -218,11 +218,11 @@ export default function AccountPage() {
         )}
 
         <section className="mb-10">
-          <h2 className="text-sm uppercase tracking-wider text-neutral-500 mb-4">Payment history</h2>
+          <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Payment history</h2>
           {history.length === 0 ? (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-10 text-center">
-              <p className="text-neutral-400">No payments yet.</p>
-              <p className="text-xs text-neutral-600 mt-2">
+            <div className="bg-surface border border-paper/10 rounded-xl p-10 text-center">
+              <p className="text-paper/60">No payments yet.</p>
+              <p className="text-xs text-paper/40 mt-2">
                 Consultations and products you purchase will be listed here with their receipts.
               </p>
             </div>
@@ -230,10 +230,10 @@ export default function AccountPage() {
             <ul className="space-y-3">
               {history.map((row) => (
                 <li key={row.key}
-                  className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-3">
+                  className="bg-surface border border-paper/10 rounded-xl p-5 flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{row.title}</p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
+                    <p className="text-xs text-paper/50 mt-0.5">
                       {formatWhen(row.occurredAt)} · {KIND_LABELS[row.kind] ?? row.kind} · via {row.providerName || "—"}
                     </p>
                   </div>
@@ -241,7 +241,7 @@ export default function AccountPage() {
                     <span className="font-semibold">
                       {row.amount > 0 ? formatMoney(row.amount, row.currency) : "Free"}
                     </span>
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PAYMENT_STATUS_STYLES[row.status] ?? "bg-neutral-700/40 text-neutral-300"}`}>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PAYMENT_STATUS_STYLES[row.status] ?? "bg-paper/10 text-paper/75"}`}>
                       {row.status}
                     </span>
                   </div>
@@ -252,10 +252,10 @@ export default function AccountPage() {
         </section>
 
         <section>
-          <h2 className="text-sm uppercase tracking-wider text-neutral-500 mb-4">Booking history</h2>
+          <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Booking history</h2>
           {past.length === 0 ? (
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-10 text-center">
-              <p className="text-neutral-400">
+            <div className="bg-surface border border-paper/10 rounded-xl p-10 text-center">
+              <p className="text-paper/60">
                 {bookings.length === 0
                   ? "You have no bookings yet."
                   : "No past bookings."}
@@ -270,10 +270,10 @@ export default function AccountPage() {
             <ul className="space-y-3">
               {past.map((b) => (
                 <li key={b.id}
-                  className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex items-center justify-between gap-4">
+                  className="bg-surface border border-paper/10 rounded-xl p-5 flex items-center justify-between gap-4">
                   <div>
                     <p className="font-medium">{formatWhen(b.startTime)}</p>
-                    <p className="text-xs text-neutral-500">with {b.trainerName}</p>
+                    <p className="text-xs text-paper/50">with {b.trainerName}</p>
                   </div>
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${BOOKING_STATUS_STYLES[b.status]}`}>
                     {b.status}

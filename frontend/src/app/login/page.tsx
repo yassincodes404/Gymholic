@@ -1,6 +1,7 @@
 /*!
   GymHolic Login — client sign-in wired to POST /api/auth/login (Spring Boot).
   Google Sign-In posts the Google ID token to /api/auth/google/signin.
+  Both flows may first ask for a 6-digit email confirmation code.
 */
 
 "use client";
@@ -8,7 +9,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { googleSignIn, login } from "@/lib/auth";
+import EmailVerificationForm from "@/components/auth/EmailVerificationForm";
+import {
+  googleSignIn,
+  login,
+  VerificationRequiredError,
+  type AuthUser,
+} from "@/lib/auth";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -31,7 +38,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Set when the backend answered with an email-code challenge. */
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  function finishSignIn(user: AuthUser) {
+    router.push(user.role === "ADMIN" ? "/admin" : "/");
+  }
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || !googleBtnRef.current) return;
@@ -46,9 +59,13 @@ export default function LoginPage() {
           setError(null);
           try {
             const user = await googleSignIn(response.credential);
-            router.push(user.role === "ADMIN" ? "/admin" : "/");
+            finishSignIn(user);
           } catch (e) {
-            setError(e instanceof Error ? e.message : "Google sign-in failed.");
+            if (e instanceof VerificationRequiredError) {
+              setPendingEmail(e.email);
+            } else {
+              setError(e instanceof Error ? e.message : "Google sign-in failed.");
+            }
           } finally {
             setBusy(false);
           }
@@ -66,7 +83,8 @@ export default function LoginPage() {
     return () => {
       script.remove();
     };
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,93 +92,103 @@ export default function LoginPage() {
     setError(null);
     try {
       const user = await login(email, password);
-      router.push(user.role === "ADMIN" ? "/admin" : "/");
+      finishSignIn(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
+      if (err instanceof VerificationRequiredError) {
+        setPendingEmail(err.email);
+      } else {
+        setError(err instanceof Error ? err.message : "Login failed.");
+      }
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center px-4 py-16">
+    <main className="min-h-screen bg-void text-paper flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
         <h1 className="text-3xl font-bold tracking-tight text-center mb-2">Welcome back</h1>
-        <p className="text-neutral-400 text-center mb-8">
+        <p className="text-paper/60 text-center mb-8">
           Sign in to book and manage your consultations.
         </p>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2 text-neutral-300">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2 text-neutral-300">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && (
-              <p className="text-red-400 text-sm" role="alert">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full bg-white text-neutral-950 font-semibold py-2.5 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50"
-            >
-              {busy ? "Signing in…" : "Sign In"}
-            </button>
-          </form>
-
-          {GOOGLE_CLIENT_ID && (
+        <div className="bg-surface border border-paper/10 rounded-2xl p-8">
+          {pendingEmail ? (
+            <EmailVerificationForm email={pendingEmail} onVerified={finishSignIn} />
+          ) : (
             <>
-              <div className="flex items-center gap-3 my-6">
-                <span className="h-px flex-1 bg-neutral-800" />
-                <span className="text-xs text-neutral-500 uppercase tracking-wider">or</span>
-                <span className="h-px flex-1 bg-neutral-800" />
-              </div>
-              <div ref={googleBtnRef} className="flex justify-center" />
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium mb-2 text-paper/75">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="field-input w-full rounded-lg border border-paper/15 bg-void px-4 py-3 text-paper placeholder-paper/30 focus:outline-none focus:ring-2 focus:ring-orange/60"
+                    placeholder="you@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium mb-2 text-paper/75">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="field-input w-full rounded-lg border border-paper/15 bg-void px-4 py-3 text-paper placeholder-paper/30 focus:outline-none focus:ring-2 focus:ring-orange/60"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                {error && (
+                  <p className="text-red-400 text-sm" role="alert">
+                    {error}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full bg-orange text-void font-semibold py-3 rounded-full hover:bg-orange/90 transition-colors disabled:opacity-50"
+                >
+                  {busy ? "Signing in…" : "Sign In"}
+                </button>
+              </form>
+
+              {GOOGLE_CLIENT_ID && (
+                <>
+                  <div className="flex items-center gap-3 my-6">
+                    <span className="h-px flex-1 bg-paper/10" />
+                    <span className="text-xs text-paper/50 uppercase tracking-wider">or</span>
+                    <span className="h-px flex-1 bg-paper/10" />
+                  </div>
+                  <div ref={googleBtnRef} className="flex justify-center" />
+                </>
+              )}
+
+              <p className="text-sm text-paper/60 text-center mt-6">
+                Don&apos;t have an account?{" "}
+                <Link href="/register" className="text-orange underline hover:no-underline">
+                  Create one
+                </Link>
+              </p>
             </>
           )}
-
-          <p className="text-sm text-neutral-400 text-center mt-6">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-neutral-100 underline hover:no-underline">
-              Create one
-            </Link>
-          </p>
         </div>
 
-        <p className="text-sm text-neutral-500 text-center mt-6">
+        <p className="text-sm text-paper/50 text-center mt-6">
           Expert or administrator?{" "}
-          <Link href="/admin/login" className="underline hover:no-underline">
+          <Link href="/admin/login" className="text-orange underline hover:no-underline">
             Admin sign-in
           </Link>
         </p>

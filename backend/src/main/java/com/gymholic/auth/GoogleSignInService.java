@@ -30,6 +30,7 @@ public class GoogleSignInService {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final AdminBootstrapService adminBootstrapService;
+    private final EmailVerificationService emailVerificationService;
 
     @Value("${google.client.id}")
     private String googleClientId;
@@ -93,6 +94,12 @@ public class GoogleSignInService {
             // Trusted emails (e.g. the owner) get ADMIN on first Google sign-in
             adminBootstrapService.promoteIfBootstrapEmail(user.getEmail());
 
+            // Even Google accounts confirm their address with a one-time
+            // code on first sign-in; after that the account is trusted.
+            if (emailVerificationService.isVerificationRequired() && !user.isEmailVerified()) {
+                return emailVerificationService.issueChallenge(user, "google-signin");
+            }
+
             // Generate JWT tokens
             UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
             String accessToken = jwtService.generateToken(userDetails);
@@ -118,6 +125,7 @@ public class GoogleSignInService {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .role(user.getRole())
+                .emailVerified(user.isEmailVerified())
                 .build();
     }
 }

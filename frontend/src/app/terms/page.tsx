@@ -56,12 +56,13 @@ export default function TermsPage() {
             will be agreed upon between the expert and client prior to booking.
           </p>
           <h3 className="text-xl font-medium mb-3">
-            Free Open Consultation
+            Open Time Session
           </h3>
           <p className="mb-6">
-            The Free Open Consultation is a complimentary introductory session
-            held over Google Meet with open time. It carries no charge and may
-            be cancelled or rebooked at any time.
+            The Open Time Session is an online session held over Google Meet
+            with open time — you choose any available slot in the calendar. It
+            is a paid session at the rate shown at booking, and it may be
+            rescheduled or cancelled under the policy above.
           </p>
           <h3 className="text-xl font-medium mb-3">
             Reminders

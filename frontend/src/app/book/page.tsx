@@ -114,8 +114,7 @@ export default function BookPage() {
     };
   }, []);
 
-  const stepOrder: Step[] =
-    service?.isFree ? ["service", "datetime", "details", "confirmation"] : ["service", "datetime", "details", "payment", "confirmation"];
+  const stepOrder: Step[] = ["service", "datetime", "details", "payment", "confirmation"];
   const currentIndex = stepOrder.indexOf(step);
 
   async function tryCreateBackendBooking(selectedService: ConsultationService, selectedDate: Date, selectedTime: string) {
@@ -185,24 +184,6 @@ export default function BookPage() {
 
     const createdBooking = (bookingData as { data?: { id?: number | string } } | null)?.data;
     return createdBooking?.id ? Number(createdBooking.id) : null;
-  }
-
-  async function confirmBackendBooking(bookingId: number) {
-    const token = getStoredAuthToken();
-    if (!token) return;
-    try {
-      const res = await fetch(buildBackendApiUrl(`bookings/${bookingId}/confirm`), {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.data) {
-        setConfirmedStatus(data.data.status ?? null);
-        setConfirmedMeetLink(data.data.meetLink ?? null);
-      }
-    } catch {
-      // Non-fatal: the booking exists; confirmation status is visible in /account.
-    }
   }
 
   /**
@@ -299,10 +280,6 @@ export default function BookPage() {
     try {
       const backendBookingId = await tryCreateBackendBooking(service, date, time);
       if (backendBookingId) {
-        if (service.isFree) {
-          // Free calls confirm immediately (no payment step).
-          await confirmBackendBooking(backendBookingId);
-        }
         setBookingRef(`BK-${backendBookingId}`);
         setStep("confirmation");
         return;
@@ -350,7 +327,7 @@ export default function BookPage() {
       <Header />
       <main className="section-dark min-h-screen px-6 md:px-10 pt-32 pb-24">
         <div className="max-w-4xl">
-          {step !== "service" && <BookingProgress currentIndex={currentIndex} isFree={!!service?.isFree} />}
+          {step !== "service" && <BookingProgress currentIndex={currentIndex} />}
 
           {bookingError && step === "datetime" && (
             <p className="text-sm mb-6" style={{ color: "var(--orange)" }}>
@@ -397,9 +374,9 @@ export default function BookPage() {
                   <button
                     type="button"
                     className="btn-pill w-full justify-center"
-                    onClick={() => (service.isFree ? createBooking().catch(() => {}) : setStep("payment"))}
+                    onClick={() => setStep("payment")}
                   >
-                    {service.isFree ? "Confirm Free Booking" : "Continue to Payment"}
+                    Continue to Payment
                   </button>
                 ) : (
                   <p className="text-sm opacity-40">Fill in your details to continue.</p>
@@ -467,7 +444,7 @@ export default function BookPage() {
                     <h2 className="font-semibold text-lg mb-2">Payments unavailable</h2>
                     <p className="text-sm opacity-70">
                       No payment gateway is configured yet. Please check back
-                      shortly, or book the Free Open Consultation instead.
+                      shortly or contact us to arrange your session.
                     </p>
                   </div>
                 ) : (

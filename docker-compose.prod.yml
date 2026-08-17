@@ -2,6 +2,9 @@
 # Gymholic — Production Docker Compose
 # ================================================
 # Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# Traefik (deployed separately, see infra/traefik) routes traffic
+# directly to the frontend/backend containers — there is no nginx.
 # ================================================
 
 services:
@@ -55,6 +58,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      # gzip for API responses (previously handled by the removed nginx proxy)
+      SERVER_COMPRESSION_ENABLED: "true"
+      SERVER_COMPRESSION_MIN_RESPONSE_SIZE: 1KB
     networks:
       - gymholic-net
     depends_on:
@@ -78,27 +84,12 @@ services:
       - "3000"
     networks:
       - gymholic-net
-
-  # ---- Nginx (Reverse Proxy) ----
-  nginx:
-    image: ghcr.io/yassincodes404/gymholic-nginx:${IMAGE_TAG:-latest}
-    container_name: gymholic-nginx
-    restart: unless-stopped
-    expose:
-      - "80"
-    networks:
-      - gymholic-net
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
 
 volumes:
   postgres_data:

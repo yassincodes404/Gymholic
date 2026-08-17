@@ -20,6 +20,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final GoogleSignInService googleSignInService;
+    private final EmailVerificationService emailVerificationService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -41,6 +42,26 @@ public class AuthController {
             @Valid @RequestBody GoogleAuthRequest request) {
         AuthResponse response = googleSignInService.authenticateWithGoogle(request.getIdToken());
         return ResponseEntity.ok(ApiResponse.success("Google sign-in successful", response));
+    }
+
+    /**
+     * Confirms sign-up/sign-in with the 6-digit code that was emailed.
+     * Marks the account verified and returns the auth tokens.
+     */
+    @PostMapping("/verify-email")
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyEmail(
+            @RequestBody Map<String, String> request) {
+        AuthResponse response = emailVerificationService.verify(
+            request.get("email"), request.get("code"));
+        return ResponseEntity.ok(ApiResponse.success("Email verified", response));
+    }
+
+    /** Re-sends the confirmation code (rate-limited to once a minute). */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<ApiResponse<AuthResponse>> resendVerification(
+            @RequestBody Map<String, String> request) {
+        AuthResponse response = emailVerificationService.resend(request.get("email"));
+        return ResponseEntity.ok(ApiResponse.success("Verification code re-sent", response));
     }
 
     @PostMapping("/refresh")

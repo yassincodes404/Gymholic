@@ -21,8 +21,11 @@
             <p style="margin: 0; color: #0c4a6e; margin-bottom: 8px;">
                 ⏱ Duration: <span th:text="${duration}">45</span> minutes
             </p>
-            <p style="margin: 0; color: #0c4a6e;">
+            <p th:if="${meetLink != ''}" style="margin: 0; color: #0c4a6e;">
                 🎥 <a th:href="${meetLink}" style="color: #0ea5e9; text-decoration: none;">Join Google Meet</a>
+            </p>
+            <p th:if="${meetLink == ''}" style="margin: 0; color: #0c4a6e;">
+                🎥 Your Google Meet link will be in the calendar invitation we sent you.
             </p>
         </div>
         <p style="color: #666; font-size: 14px;">

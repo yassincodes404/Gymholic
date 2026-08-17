@@ -12,7 +12,7 @@ export function BarChart({
   height?: number;
 }) {
   if (data.length === 0) {
-    return <p className="text-neutral-500 text-sm py-8 text-center">No data yet.</p>;
+    return <p className="text-paper/50 text-sm py-8 text-center">No data yet.</p>;
   }
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
@@ -21,15 +21,15 @@ export function BarChart({
         const barHeight = Math.max((d.value / max) * (height - 40), d.value > 0 ? 4 : 1);
         return (
           <div key={d.label} className="flex flex-col items-center gap-1 min-w-[36px] flex-1">
-            <span className="text-[10px] text-neutral-400 whitespace-nowrap">
+            <span className="text-[10px] text-paper/60 whitespace-nowrap">
               {d.value > 0 ? valueFormat(d.value) : ""}
             </span>
             <div
-              className="w-full rounded-t bg-emerald-500/70 hover:bg-emerald-400 transition-colors"
+              className="w-full rounded-t bg-orange/75 hover:bg-orange transition-colors"
               style={{ height: barHeight }}
               title={`${d.label}: ${valueFormat(d.value)}`}
             />
-            <span className="text-[10px] text-neutral-500 whitespace-nowrap">{d.label}</span>
+            <span className="text-[10px] text-paper/50 whitespace-nowrap">{d.label}</span>
           </div>
         );
       })}
@@ -40,7 +40,7 @@ export function BarChart({
 export function StatusBreakdown({ counts }: { counts: Record<string, number> }) {
   const entries = Object.entries(counts);
   if (entries.length === 0) {
-    return <p className="text-neutral-500 text-sm py-8 text-center">No bookings yet.</p>;
+    return <p className="text-paper/50 text-sm py-8 text-center">No bookings yet.</p>;
   }
   const total = entries.reduce((sum, [, v]) => sum + v, 0);
   const colors: Record<string, string> = {
@@ -48,20 +48,20 @@ export function StatusBreakdown({ counts }: { counts: Record<string, number> }) 
     CONFIRMED: "bg-emerald-500",
     COMPLETED: "bg-blue-500",
     CANCELLED: "bg-red-500",
-    NO_SHOW: "bg-neutral-500",
+    NO_SHOW: "bg-paper/40",
   };
   return (
     <div className="space-y-3">
       {entries.map(([status, count]) => (
         <div key={status} className="flex items-center gap-3">
-          <span className="text-xs text-neutral-400 w-24">{status}</span>
-          <div className="flex-1 h-2.5 bg-neutral-800 rounded-full overflow-hidden">
+          <span className="text-xs text-paper/60 w-24">{status}</span>
+          <div className="flex-1 h-2.5 bg-paper/10 rounded-full overflow-hidden">
             <div
-              className={`h-full ${colors[status] ?? "bg-neutral-500"}`}
+              className={`h-full ${colors[status] ?? "bg-paper/40"}`}
               style={{ width: `${total ? (count / total) * 100 : 0}%` }}
             />
           </div>
-          <span className="text-xs text-neutral-300 w-16 text-right">
+          <span className="text-xs text-paper/75 w-16 text-right">
             {count} ({total ? Math.round((count / total) * 100) : 0}%)
           </span>
         </div>

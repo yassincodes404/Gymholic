@@ -15,7 +15,7 @@ const STATUS_DOT: Record<TrainerBooking["status"], string> = {
   CONFIRMED: "bg-emerald-400",
   COMPLETED: "bg-blue-400",
   CANCELLED: "bg-red-400",
-  NO_SHOW: "bg-neutral-400",
+  NO_SHOW: "bg-paper/60",
 };
 
 function monthKey(d: Date) {
@@ -74,17 +74,17 @@ export default function AdminCalendarPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-            className="border border-neutral-700 rounded-lg px-3 py-1.5 text-sm hover:bg-neutral-800">
+            className="border border-paper/15 rounded-lg px-3 py-1.5 text-sm hover:bg-paper/10">
             ←
           </button>
           <button
             onClick={() => setCursor(new Date())}
-            className="border border-neutral-700 rounded-lg px-3 py-1.5 text-sm hover:bg-neutral-800">
+            className="border border-paper/15 rounded-lg px-3 py-1.5 text-sm hover:bg-paper/10">
             Today
           </button>
           <button
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-            className="border border-neutral-700 rounded-lg px-3 py-1.5 text-sm hover:bg-neutral-800">
+            className="border border-paper/15 rounded-lg px-3 py-1.5 text-sm hover:bg-paper/10">
             →
           </button>
         </div>
@@ -92,11 +92,11 @@ export default function AdminCalendarPage() {
 
       {error && <div className="mb-6 bg-red-950/50 border border-red-800 text-red-300 rounded-lg p-4">{error}</div>}
       {loading ? (
-        <p className="text-neutral-400">Loading calendar…</p>
+        <p className="text-paper/60">Loading calendar…</p>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-            <div className="grid grid-cols-7 mb-2 text-center text-xs uppercase tracking-wider text-neutral-500">
+          <div className="bg-surface border border-paper/10 rounded-xl p-4">
+            <div className="grid grid-cols-7 mb-2 text-center text-xs uppercase tracking-wider text-paper/50">
               {WEEKDAYS.map((d) => <span key={d} className="py-1">{d}</span>)}
             </div>
             <div className="grid grid-cols-7 gap-1">
@@ -110,23 +110,23 @@ export default function AdminCalendarPage() {
                     key={key}
                     onClick={() => setSelected(key)}
                     className={`min-h-[72px] rounded-lg border p-1.5 text-left align-top transition-colors ${
-                      selected === key ? "border-neutral-500 bg-neutral-800" : "border-neutral-800 hover:bg-neutral-800/50"
+                      selected === key ? "border-paper/30 bg-paper/10" : "border-paper/10 hover:bg-paper/10"
                     } ${inMonth ? "" : "opacity-30"}`}
                   >
-                    <span className={`text-xs ${isToday ? "text-emerald-400 font-bold" : "text-neutral-400"}`}>
+                    <span className={`text-xs ${isToday ? "text-emerald-400 font-bold" : "text-paper/60"}`}>
                       {d.getDate()}
                     </span>
                     <div className="mt-1 space-y-1">
                       {dayBookings.slice(0, 3).map((b) => (
                         <div key={b.id} className="flex items-center gap-1">
                           <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[b.status]}`} />
-                          <span className="text-[10px] text-neutral-300 truncate">
+                          <span className="text-[10px] text-paper/75 truncate">
                             {new Date(b.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} {b.clientName.split(" ")[0]}
                           </span>
                         </div>
                       ))}
                       {dayBookings.length > 3 && (
-                        <span className="text-[10px] text-neutral-500">+{dayBookings.length - 3} more</span>
+                        <span className="text-[10px] text-paper/50">+{dayBookings.length - 3} more</span>
                       )}
                     </div>
                   </button>
@@ -135,18 +135,18 @@ export default function AdminCalendarPage() {
             </div>
           </div>
 
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 h-fit">
+          <div className="bg-surface border border-paper/10 rounded-xl p-5 h-fit">
             <h2 className="font-semibold mb-4">
               {selected
                 ? new Date(selected + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
                 : "Select a day"}
             </h2>
             {selectedBookings.length === 0 ? (
-              <p className="text-neutral-500 text-sm">No consultations on this day.</p>
+              <p className="text-paper/50 text-sm">No consultations on this day.</p>
             ) : (
               <ul className="space-y-4">
                 {selectedBookings.map((b) => (
-                  <li key={b.id} className="border-b border-neutral-800 pb-3 last:border-0">
+                  <li key={b.id} className="border-b border-paper/10 pb-3 last:border-0">
                     <p className="font-medium">
                       {new Date(b.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
                       {" – "}
@@ -154,7 +154,7 @@ export default function AdminCalendarPage() {
                       {" · "}
                       {b.clientName}
                     </p>
-                    <p className="text-xs text-neutral-500 mt-0.5">
+                    <p className="text-xs text-paper/50 mt-0.5">
                       {b.status}
                       {b.meetLink && (
                         <>

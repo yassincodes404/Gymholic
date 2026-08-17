@@ -10,6 +10,14 @@ FROM node:20-alpine AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# NEXT_PUBLIC_* values are baked into the client bundle at build time.
+# Passed from CI (repository variables/secrets); empty values fall back to
+# the defaults inside the app (hidden Google button, /api base path).
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=""
+ARG NEXT_PUBLIC_BACKEND_API_BASE_URL=""
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ENV NEXT_PUBLIC_BACKEND_API_BASE_URL=$NEXT_PUBLIC_BACKEND_API_BASE_URL
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 

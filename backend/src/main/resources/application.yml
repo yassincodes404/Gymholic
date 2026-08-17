@@ -16,6 +16,16 @@ app:
     bootstrap-emails: ${ADMIN_BOOTSTRAP_EMAILS:}
   mail:
     from: ${MAIL_FROM:noreply@gymholic.com}
+    from-name: ${MAIL_FROM_NAME:Gymholic}
+  brevo:
+    api-key: ${BREVO_API_KEY:}
+    sender-email: ${BREVO_SENDER_EMAIL:}
+    sender-name: ${BREVO_SENDER_NAME:Gymholic}
+  auth:
+    # One-time email codes on sign-up / sign-in; verified accounts are
+    # required before any payment, order, cart or booking goes through.
+    # Set EMAIL_VERIFICATION_REQUIRED=false only to recover/develop locally.
+    email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:true}
 
 google:
   client:

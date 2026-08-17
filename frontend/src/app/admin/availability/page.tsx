@@ -71,12 +71,12 @@ export default function AdminAvailabilityPage() {
   }
 
   const inputCls =
-    "bg-neutral-950 border border-neutral-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-600";
+    "bg-void border border-paper/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange/60";
 
   return (
     <AdminShell activeHref="/admin/availability">
       <h1 className="text-2xl font-bold tracking-tight mb-2">Availability</h1>
-      <p className="text-neutral-400 text-sm mb-6">
+      <p className="text-paper/60 text-sm mb-6">
         Working hours customers can book. 45-minute consultations with a 5-minute buffer
         are generated automatically inside these windows.
       </p>
@@ -85,19 +85,19 @@ export default function AdminAvailabilityPage() {
       {notice && <div className="mb-6 bg-emerald-950/50 border border-emerald-800 text-emerald-300 rounded-lg p-4">{notice}</div>}
 
       {loading ? (
-        <p className="text-neutral-400">Loading availability…</p>
+        <p className="text-paper/60">Loading availability…</p>
       ) : (
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             {DAYS.map((day) => {
               const dayRows = rows.filter((r) => r.dayOfWeek === day);
               return (
-                <div key={day} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+                <div key={day} className="bg-surface border border-paper/10 rounded-xl p-5">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-paper/60 mb-3">
                     {day.slice(0, 3)} · {dayRows.length > 0 ? `${dayRows.length} window${dayRows.length > 1 ? "s" : ""}` : "closed"}
                   </h2>
                   {dayRows.length === 0 ? (
-                    <p className="text-neutral-600 text-sm">Not bookable</p>
+                    <p className="text-paper/40 text-sm">Not bookable</p>
                   ) : (
                     <ul className="space-y-2">
                       {dayRows.map((r) => (
@@ -118,10 +118,10 @@ export default function AdminAvailabilityPage() {
             })}
           </div>
 
-          <form onSubmit={addSlot} className="bg-neutral-900 border border-neutral-800 rounded-xl p-6 h-fit space-y-4">
+          <form onSubmit={addSlot} className="bg-surface border border-paper/10 rounded-xl p-6 h-fit space-y-4">
             <h2 className="font-semibold">Add working hours</h2>
             <label className="block text-sm">
-              <span className="text-neutral-400 block mb-1.5">Day</span>
+              <span className="text-paper/60 block mb-1.5">Day</span>
               <select value={form.dayOfWeek} onChange={(e) => setForm({ ...form, dayOfWeek: e.target.value })}
                 className={inputCls + " w-full"}>
                 {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -129,18 +129,18 @@ export default function AdminAvailabilityPage() {
             </label>
             <div className="grid grid-cols-2 gap-4">
               <label className="block text-sm">
-                <span className="text-neutral-400 block mb-1.5">Start</span>
+                <span className="text-paper/60 block mb-1.5">Start</span>
                 <input type="time" value={form.startTime} required
                   onChange={(e) => setForm({ ...form, startTime: e.target.value })} className={inputCls + " w-full"} />
               </label>
               <label className="block text-sm">
-                <span className="text-neutral-400 block mb-1.5">End</span>
+                <span className="text-paper/60 block mb-1.5">End</span>
                 <input type="time" value={form.endTime} required
                   onChange={(e) => setForm({ ...form, endTime: e.target.value })} className={inputCls + " w-full"} />
               </label>
             </div>
             <button type="submit" disabled={saving}
-              className="w-full bg-white text-neutral-950 font-semibold rounded-lg py-2.5 text-sm hover:bg-neutral-200 disabled:opacity-50">
+              className="w-full bg-orange text-void font-semibold rounded-lg py-2.5 text-sm hover:bg-orange/90 disabled:opacity-50">
               {saving ? "Adding…" : "Add"}
             </button>
           </form>

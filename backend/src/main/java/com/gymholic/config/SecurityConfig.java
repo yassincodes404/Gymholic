@@ -44,6 +44,11 @@ public class SecurityConfig {
                     response.setContentType("application/json");
                     response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + authException.getMessage() + "\"}");
                 })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"Email verification required. Confirm your email with the code we sent you, then try again.\"}");
+                })
             )
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
@@ -52,16 +57,19 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/payments/webhook/**").permitAll()
+                .requestMatchers("/api/payments/active-provider").permitAll()
                 .requestMatchers("/api/integrations/google/callback").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/whitelist").permitAll() // Join waitlist (guest-friendly)
                 .requestMatchers(HttpMethod.GET, "/api/settings/pricing").permitAll() // Public booking prices
-                .requestMatchers(HttpMethod.GET, "/api/payments/active-provider").permitAll() // Which gateway checkout uses
                 .requestMatchers("/api/bookings/reschedule/**").permitAll() // One-time no-show reschedule links (token-protected)
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments").permitAll() // Start assessment
                 .requestMatchers(HttpMethod.PUT, "/api/v1/assessments/*").permitAll() // Update assessment
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments/*/submit").permitAll() // Submit assessment
                 .requestMatchers(HttpMethod.GET, "/api/v1/assessments/*").permitAll() // Get specific assessment
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // No payments, orders, cart or bookings until the email is confirmed
+                .requestMatchers("/api/payments/**", "/api/orders/**", "/api/cart/**", "/api/bookings/**")
+                    .hasAuthority("EMAIL_VERIFIED")
                 // Admin endpoints require ADMIN role
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // Everything else requires authentication

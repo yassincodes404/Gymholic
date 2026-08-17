@@ -106,7 +106,7 @@ export default function AdminPage() {
       )}
 
       {loading ? (
-        <p className="text-neutral-400">Loading stats…</p>
+        <p className="text-paper/60">Loading stats…</p>
       ) : (
         <>
           <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
@@ -118,8 +118,8 @@ export default function AdminPage() {
               { label: "Cancellation Rate", value: `${stats?.cancellationRate ?? 0}%` },
               { label: "Total Customers", value: stats?.totalUsers ?? 0 },
             ].map((kpi) => (
-              <div key={kpi.label} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-                <p className="text-xs uppercase tracking-wider text-neutral-500 mb-2">{kpi.label}</p>
+              <div key={kpi.label} className="bg-surface border border-paper/10 rounded-xl p-5">
+                <p className="text-xs uppercase tracking-wider text-paper/50 mb-2">{kpi.label}</p>
                 <p className="text-2xl font-bold">{kpi.value}</p>
               </div>
             ))}
@@ -130,31 +130,31 @@ export default function AdminPage() {
               <div className={`rounded-xl p-5 border ${
                 (stats?.refundDue ?? 0) > 0
                   ? "bg-red-950/40 border-red-900"
-                  : "bg-neutral-900 border-neutral-800"
+                  : "bg-surface border-paper/10"
               }`}>
-                <p className="text-xs uppercase tracking-wider text-neutral-500 mb-2">Refunds due</p>
+                <p className="text-xs uppercase tracking-wider text-paper/50 mb-2">Refunds due</p>
                 <p className="text-2xl font-bold text-red-300">{stats?.refundDue ?? 0}</p>
-                <p className="text-xs text-neutral-500 mt-2">
+                <p className="text-xs text-paper/50 mt-2">
                   Sessions the expert missed — clients are owed a refund or a free rebooking.
                 </p>
               </div>
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-                <p className="text-xs uppercase tracking-wider text-neutral-500 mb-2">No-shows (total)</p>
+              <div className="bg-surface border border-paper/10 rounded-xl p-5">
+                <p className="text-xs uppercase tracking-wider text-paper/50 mb-2">No-shows (total)</p>
                 <p className="text-2xl font-bold">{stats?.noShows ?? 0}</p>
-                <p className="text-xs text-neutral-500 mt-2">
+                <p className="text-xs text-paper/50 mt-2">
                   Missed sessions. Clients get an automated reschedule email.
                 </p>
               </div>
-              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 overflow-hidden">
-                <p className="text-xs uppercase tracking-wider text-neutral-500 mb-3">Recent no-shows</p>
+              <div className="bg-surface border border-paper/10 rounded-xl p-5 overflow-hidden">
+                <p className="text-xs uppercase tracking-wider text-paper/50 mb-3">Recent no-shows</p>
                 {(stats?.recentNoShows?.length ?? 0) === 0 ? (
-                  <p className="text-xs text-neutral-600">None recorded.</p>
+                  <p className="text-xs text-paper/40">None recorded.</p>
                 ) : (
                   <ul className="text-xs space-y-2">
                     {stats!.recentNoShows!.slice(0, 3).map((n) => (
                       <li key={n.id} className="flex items-center justify-between gap-2">
                         <span className="truncate">{n.clientName}</span>
-                        <span className={n.refundDue ? "text-red-300" : "text-neutral-500"} whitespace-nowrap>
+                        <span className={n.refundDue ? "text-red-300" : "text-paper/50"} whitespace-nowrap>
                           {n.refundDue ? "Expert missed — refund" : "Client missed"}
                         </span>
                       </li>
@@ -166,35 +166,35 @@ export default function AdminPage() {
           )}
 
           <section className="grid lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+            <div className="bg-surface border border-paper/10 rounded-xl p-6">
               <h2 className="font-semibold mb-4">Revenue — last 14 days</h2>
               <BarChart
                 data={(analytics?.revenueByDay ?? []).map((d) => ({ label: d.date.slice(5), value: d.total }))}
                 valueFormat={(v) => `${v}`}
               />
             </div>
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+            <div className="bg-surface border border-paper/10 rounded-xl p-6">
               <h2 className="font-semibold mb-4">Bookings by status</h2>
               <StatusBreakdown counts={analytics?.bookingsByStatus ?? {}} />
             </div>
           </section>
 
           <section className="grid lg:grid-cols-2 gap-6">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-              <h2 className="font-semibold px-5 py-4 border-b border-neutral-800">Today&apos;s Consultations</h2>
+            <div className="bg-surface border border-paper/10 rounded-xl overflow-hidden">
+              <h2 className="font-semibold px-5 py-4 border-b border-paper/10">Today&apos;s Consultations</h2>
               {(stats?.todaysBookings?.length ?? 0) === 0 ? (
-                <p className="text-neutral-500 text-sm px-5 py-8 text-center">No consultations today.</p>
+                <p className="text-paper/50 text-sm px-5 py-8 text-center">No consultations today.</p>
               ) : (
-                <ul className="divide-y divide-neutral-800">
+                <ul className="divide-y divide-paper/10">
                   {stats!.todaysBookings.map((b) => (
                     <li key={b.id} className="px-5 py-4 flex items-center justify-between gap-4">
                       <div>
                         <p className="font-medium">{b.clientName}</p>
-                        <p className="text-xs text-neutral-500">{formatTime(b.startTime)} · {b.status}</p>
+                        <p className="text-xs text-paper/50">{formatTime(b.startTime)} · {b.status}</p>
                       </div>
                       {b.meetLink && (
                         <a href={b.meetLink} target="_blank" rel="noreferrer"
-                          className="text-sm bg-white text-neutral-950 font-medium rounded-lg px-3 py-1.5 hover:bg-neutral-200">
+                          className="text-sm bg-orange text-void font-medium rounded-lg px-3 py-1.5 hover:bg-orange/90">
                           Meet
                         </a>
                       )}
@@ -204,16 +204,16 @@ export default function AdminPage() {
               )}
             </div>
 
-            <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
-              <h2 className="font-semibold px-5 py-4 border-b border-neutral-800">Upcoming Consultations</h2>
+            <div className="bg-surface border border-paper/10 rounded-xl overflow-hidden">
+              <h2 className="font-semibold px-5 py-4 border-b border-paper/10">Upcoming Consultations</h2>
               {(stats?.upcomingBookings?.length ?? 0) === 0 ? (
-                <p className="text-neutral-500 text-sm px-5 py-8 text-center">No upcoming consultations.</p>
+                <p className="text-paper/50 text-sm px-5 py-8 text-center">No upcoming consultations.</p>
               ) : (
-                <ul className="divide-y divide-neutral-800">
+                <ul className="divide-y divide-paper/10">
                   {stats!.upcomingBookings.map((b) => (
                     <li key={b.id} className="px-5 py-4">
                       <p className="font-medium">{b.clientName}</p>
-                      <p className="text-xs text-neutral-500">{formatTime(b.startTime)} · {b.status}</p>
+                      <p className="text-xs text-paper/50">{formatTime(b.startTime)} · {b.status}</p>
                     </li>
                   ))}
                 </ul>
@@ -223,23 +223,23 @@ export default function AdminPage() {
 
           <section className="mt-10">
             <Link href="/admin/products"
-              className="block bg-neutral-900 border border-dashed border-neutral-700 rounded-xl p-6 hover:border-neutral-500 transition-colors">
+              className="block bg-surface border border-dashed border-paper/15 rounded-xl p-6 hover:border-orange/60 transition-colors">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-semibold mb-1">Products</h2>
-                  <p className="text-sm text-neutral-400">
+                  <p className="text-sm text-paper/60">
                     Courses, downloadable PDFs and physical products — sellable
                     inventory for the Academy and Blueprints store.
                   </p>
                 </div>
-                <span className="text-xs uppercase tracking-wider bg-neutral-800 text-neutral-400 px-3 py-1.5 rounded-full whitespace-nowrap">
+                <span className="text-xs uppercase tracking-wider bg-paper/10 text-paper/60 px-3 py-1.5 rounded-full whitespace-nowrap">
                   Coming Soon
                 </span>
               </div>
             </Link>
           </section>
 
-          <p className="text-neutral-600 text-sm mt-8">
+          <p className="text-paper/40 text-sm mt-8">
             All operational pages are live.{" "}
             <Link href="/admin/integrations" className="underline hover:no-underline">
               Connect Google Calendar

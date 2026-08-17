@@ -61,6 +61,11 @@ public class SettingsService {
 
     @Transactional
     public void updateSetting(String key, String value) {
+        // The whole platform (gates, emails, Paymob calls) is USD-only;
+        // keep the currency setting from drifting to anything else.
+        if ("BOOKING_CURRENCY".equals(key)) {
+            value = "USD";
+        }
         Settings settings = settingsRepository.findByKey(key)
             .orElse(Settings.builder().key(key).build());
         settings.setValue(value);

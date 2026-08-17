@@ -57,19 +57,19 @@ export default function AdminRevenuePage() {
           { label: "Completed Sessions", value: stats?.completedSessions ?? 0 },
           { label: "Cancellation Rate", value: `${stats?.cancellationRate ?? 0}%` },
         ].map((kpi) => (
-          <div key={kpi.label} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-            <p className="text-xs uppercase tracking-wider text-neutral-500 mb-2">{kpi.label}</p>
+          <div key={kpi.label} className="bg-surface border border-paper/10 rounded-xl p-5">
+            <p className="text-xs uppercase tracking-wider text-paper/50 mb-2">{kpi.label}</p>
             <p className="text-2xl font-bold">{kpi.value}</p>
           </div>
         ))}
       </section>
 
       <section className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="bg-surface border border-paper/10 rounded-xl p-6">
           <h2 className="font-semibold mb-4">Revenue — last 14 days</h2>
           <BarChart data={chartData} valueFormat={(v) => `${v}`} />
         </div>
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
+        <div className="bg-surface border border-paper/10 rounded-xl p-6">
           <h2 className="font-semibold mb-4">Bookings by status</h2>
           <StatusBreakdown counts={analytics?.bookingsByStatus ?? {}} />
         </div>

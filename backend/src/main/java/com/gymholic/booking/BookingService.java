@@ -56,6 +56,33 @@ public class BookingService {
         return allowedOrigins.split(",")[0].trim();
     }
 
+    /** Where admin/expert notification emails go (ADMIN_NOTIFY_EMAIL overrides the trainer inbox). */
+    private String adminNotifyEmail(String trainerEmail) {
+        try {
+            return settingsService.getString("ADMIN_NOTIFY_EMAIL", trainerEmail);
+        } catch (Exception e) {
+            return trainerEmail;
+        }
+    }
+
+    /** Booking time rendered in the client's timezone for client emails. */
+    private String clientDisplayTime(Booking booking) {
+        return displayTime(booking.getStartTime(), booking.getClientTimezone());
+    }
+
+    /** Booking time rendered in the expert's timezone for admin/expert emails. */
+    private String expertDisplayTime(Booking booking) {
+        return displayTime(booking.getStartTime(), booking.getTrainer().getTimezone());
+    }
+
+    private String displayTime(java.time.Instant time, String timezone) {
+        try {
+            return DateTimeUtils.formatForDisplay(time, ZoneId.of(timezone));
+        } catch (Exception e) {
+            return DateTimeUtils.formatForDisplay(time);
+        }
+    }
+
     @Transactional
     public BookingDto createBooking(String clientEmail, CreateBookingRequest request) {
         User client = userRepository.findByEmail(clientEmail)
@@ -108,12 +135,8 @@ public class BookingService {
             throw new BadRequestException("Trainer is not available at the requested time");
         }
 
-        // The free open consultation can be switched off from Admin → Settings.
-        String[] pricePreview = resolveBookingPrice(request.getNotes());
-        if (new java.math.BigDecimal(pricePreview[0]).compareTo(java.math.BigDecimal.ZERO) == 0
-                && !settingsService.getBool("BOOKING_FREE_CONSULTATION_ENABLED", true)) {
-            throw new BadRequestException("The Free Open Consultation is currently unavailable. Please choose a paid session.");
-        }
+        // The requested time slot must be available.
+
         Instant bufferStart = request.getStartTime().minus(Duration.ofMinutes(5));
         Instant bufferEnd = request.getEndTime().plus(Duration.ofMinutes(5));
         
@@ -147,13 +170,13 @@ public class BookingService {
         log.info("Booking created: ID={}, startTime={} (expert: {}, client: {})", 
                  saved.getId(), saved.getStartTime(), expertZone, clientZone);
 
-        // Notify the expert about the new (pending payment) booking
+        // Notify the admin/expert about the new (pending payment) booking
         String[] price = resolveBookingPrice(saved.getNotes());
         notificationService.sendAdminNewBooking(
-            saved.getTrainer().getEmail(),
+            adminNotifyEmail(saved.getTrainer().getEmail()),
             saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
             saved.getClient().getEmail(),
-            saved.getStartTime().toString(),
+            expertDisplayTime(saved),
             price[0], price[1]
         );
 
@@ -162,10 +185,11 @@ public class BookingService {
 
     /**
      * Price for a booking resolved from the configurable settings (USD).
-     * The service type is recorded in the booking notes; the free open
-     * consultation resolves to 0. Public: the payment service uses this to
-     * enforce the admin-managed price server-side, so client-sent amounts
-     * can never override it.
+     * All three services are paid and admin-managed: the service type is
+     * recorded in the booking notes. The open time session is the fallback
+     * so an unexpected note can never resolve to a free session. Public:
+     * the payment service uses this to enforce the admin-managed price
+     * server-side, so client-sent amounts can never override it.
      */
     public String[] resolveBookingPrice(String notes) {
         String currency = "USD";
@@ -178,11 +202,11 @@ public class BookingService {
             } else if (notes != null && notes.contains("Strategy")) {
                 amount = all.getOrDefault("BOOKING_PRICE_STRATEGY_CALL", "125");
             } else {
-                amount = "0"; // free open consultation
+                amount = all.getOrDefault("BOOKING_PRICE_OPEN_SESSION", "150"); // open time session
             }
             return new String[]{amount, currency};
         } catch (Exception e) {
-            return new String[]{"0", currency};
+            return new String[]{"150", currency};
         }
     }
 
@@ -251,7 +275,7 @@ public class BookingService {
             saved.getClient().getEmail(),
             saved.getClient().getFirstName(),
             saved.getTrainer().getFirstName(),
-            saved.getStartTime().toString(),
+            clientDisplayTime(saved),
             "45",
             saved.getMeetLink()
         );
@@ -273,10 +297,10 @@ public class BookingService {
             log.warn("Could not load payment amount for admin notification: {}", e.getMessage());
         }
         notificationService.sendAdminBookingConfirmed(
-            saved.getTrainer().getEmail(),
+            adminNotifyEmail(saved.getTrainer().getEmail()),
             saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
             saved.getClient().getEmail(),
-            saved.getStartTime().toString(),
+            expertDisplayTime(saved),
             amount,
             currency,
             saved.getMeetLink()
@@ -316,9 +340,9 @@ public class BookingService {
         }
         
         notificationService.sendBookingCancellation(
-            saved.getClient().getEmail(), 
-            saved.getClient().getFirstName(), 
-            saved.getStartTime().toString(), 
+            saved.getClient().getEmail(),
+            saved.getClient().getFirstName(),
+            clientDisplayTime(saved),
             reason
         );
 
@@ -350,8 +374,8 @@ public class BookingService {
             saved.getClient().getEmail(),
             saved.getClient().getFirstName(),
             saved.getTrainer().getFirstName(),
-            oldStartTime.toString(),
-            saved.getStartTime().toString(),
+            displayTime(oldStartTime, saved.getClientTimezone()),
+            displayTime(saved.getStartTime(), saved.getClientTimezone()),
             saved.getMeetLink()
         );
 
@@ -405,7 +429,7 @@ public class BookingService {
 
         Booking saved = bookingRepository.save(booking);
 
-        String dateTime = DateTimeUtils.formatForDisplay(saved.getStartTime());
+        String dateTime = displayTime(saved.getStartTime(), saved.getClientTimezone());
         String rescheduleUrl = frontendUrl() + "/reschedule?token=" + saved.getRescheduleToken();
         String expiresOn = DATE_FORMAT.format(LocalDate.now().plusDays(windowDays));
 
@@ -419,7 +443,7 @@ public class BookingService {
         );
 
         notificationService.sendAdminNoShow(
-            saved.getTrainer().getEmail(),
+            adminNotifyEmail(saved.getTrainer().getEmail()),
             saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
             saved.getClient().getEmail(),
             dateTime,
@@ -486,15 +510,15 @@ public class BookingService {
             saved.getClient().getEmail(),
             saved.getClient().getFirstName(),
             saved.getTrainer().getFirstName(),
-            oldStartTime.toString(),
-            saved.getStartTime().toString(),
+            displayTime(oldStartTime, saved.getClientTimezone()),
+            displayTime(saved.getStartTime(), saved.getClientTimezone()),
             saved.getMeetLink()
         );
         notificationService.sendBookingConfirmation(
-            saved.getTrainer().getEmail(),
+            adminNotifyEmail(saved.getTrainer().getEmail()),
             saved.getTrainer().getFirstName(),
             "rescheduled session with " + saved.getClient().getFirstName(),
-            saved.getStartTime().toString(),
+            expertDisplayTime(saved),
             "45",
             saved.getMeetLink()
         );

@@ -11,7 +11,7 @@ export function BookingBand() {
         className="display-hero text-4xl md:text-6xl max-w-3xl mx-auto mb-10"
       />
       <MagneticButton href="/book" className="btn-pill mx-auto">
-        Book a Free Discovery Call
+        Book Your Session
       </MagneticButton>
     </section>
   );

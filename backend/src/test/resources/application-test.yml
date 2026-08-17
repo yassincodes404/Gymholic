@@ -1,6 +1,10 @@
 app:
   encryption:
     secret: test_encryption_secret_123
+  auth:
+    # Legacy auth tests exercise the direct-to-tokens flow; the challenge
+    # flow has its own dedicated test class.
+    email-verification-required: false
 
 spring:
   datasource:

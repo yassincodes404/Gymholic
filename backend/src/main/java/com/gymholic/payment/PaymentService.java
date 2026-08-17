@@ -52,7 +52,8 @@ public class PaymentService {
         BigDecimal amount = new BigDecimal(resolved[0]);
         String currency = resolved[1];
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BadRequestException("This booking is a free open consultation and does not require payment.");
+            throw new BadRequestException(
+                "This service is currently priced at zero in the admin settings, so checkout cannot start. Please contact support.");
         }
 
         Map<String, String> checkout = provider.createCheckout(

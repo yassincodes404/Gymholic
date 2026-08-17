@@ -5,30 +5,28 @@ A fitness consultation booking platform — book sessions with trainers, manage 
 ## Architecture
 
 ```
-                    Internet
-                       │
-                       ▼
-                 Hostinger Traefik
-                   :80 / :443
-                       │
-                    Nginx :80
-                       │
-             ┌─────────┴─────────┐
-             │                   │
-             ▼                   ▼
-      React Frontend       Spring Boot API
-                                 │
-                         ┌───────┴────────┐
-                         │                │
-                         ▼                ▼
-                    PostgreSQL          Redis
+                Internet
+                   │
+                   ▼
+             Hostinger Traefik
+               :80 / :443
+                   │
+         ┌─────────┴─────────┐
+         │                   │
+         ▼                   ▼
+  React Frontend       Spring Boot API
+         :3000                │:8080
+                     ┌───────┴────────┐
+                     │                │
+                     ▼                ▼
+                PostgreSQL          Redis
 ```
 
 **Backend**: Spring Boot 3.3 · Java 21 · Modular monolith  
 **Frontend**: React · TypeScript · Next.js  
 **Database**: PostgreSQL 16 · Flyway migrations  
 **Cache**: Redis 7  
-**Proxy**: Hostinger Traefik + Nginx  
+**Proxy**: Hostinger Traefik (edge TLS + routing)  
 **CI/CD**: GitHub Actions → GHCR → Hostinger VPS
 
 ## Prerequisites
@@ -78,7 +76,7 @@ npm run dev
 ## Production Deployment
 
 Production uses Docker images from GHCR, deployed to Hostinger VPS via GitHub Actions.
-Public TLS termination is handled by Hostinger Traefik, while Gymholic Nginx stays internal on port `80`.
+Hostinger Traefik terminates public TLS and routes directly to the frontend and backend containers.
 
 ```bash
 # On the VPS
@@ -92,10 +90,10 @@ The shared Traefik reverse-proxy layer is version controlled in `infra/traefik`.
 
 ```
 Gymholic/
-├── backend/          # Spring Boot API
-├── frontend/         # React + Next.js
-├── nginx/            # Reverse proxy
-├── .github/          # CI/CD workflows
+├── backend/         # Spring Boot API
+├── frontend/        # React + Next.js
+├── infra/traefik/   # Edge reverse proxy (VPS)
+├── .github/         # CI/CD workflows
 ├── docker-compose.yml        # Local dev
 └── docker-compose.prod.yml   # Production
 ```

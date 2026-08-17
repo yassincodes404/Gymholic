@@ -117,7 +117,9 @@ public class ReminderScheduler {
     }
 
     private void sendReminder(Booking booking, String whenNote) {
-        String dateTime = DateTimeUtils.formatForDisplay(booking.getStartTime())
+        String clientDateTime = displayInZone(booking.getStartTime(), booking.getClientTimezone())
+            + " (" + whenNote + ")";
+        String expertDateTime = displayInZone(booking.getStartTime(), booking.getTrainer().getTimezone())
             + " (" + whenNote + ")";
         String trainerName = booking.getTrainer().getFirstName() + " " + booking.getTrainer().getLastName();
 
@@ -125,15 +127,23 @@ public class ReminderScheduler {
             booking.getClient().getEmail(),
             booking.getClient().getFirstName(),
             trainerName,
-            dateTime,
+            clientDateTime,
             booking.getMeetLink());
 
-        // The expert gets a reminder too
+        // The expert gets a reminder too (in their own timezone)
         notificationService.sendBookingReminder(
             booking.getTrainer().getEmail(),
             booking.getTrainer().getFirstName(),
             booking.getClient().getFirstName() + " " + booking.getClient().getLastName(),
-            dateTime,
+            expertDateTime,
             booking.getMeetLink());
+    }
+
+    private String displayInZone(Instant time, String timezone) {
+        try {
+            return DateTimeUtils.formatForDisplay(time, java.time.ZoneId.of(timezone));
+        } catch (Exception e) {
+            return DateTimeUtils.formatForDisplay(time);
+        }
     }
 }

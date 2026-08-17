@@ -31,20 +31,20 @@ export default function AdminLoginPage() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-neutral-100 placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-neutral-500";
+    "field-input w-full rounded-lg border border-paper/15 bg-void px-4 py-3 text-paper placeholder-paper/30 focus:outline-none focus:ring-2 focus:ring-orange/60";
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center px-4 py-16">
+    <main className="min-h-screen bg-void text-paper flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
         <h1 className="text-3xl font-bold tracking-tight text-center mb-2">Admin sign-in</h1>
-        <p className="text-neutral-400 text-center mb-8">
+        <p className="text-paper/60 text-center mb-8">
           Restricted to GymHolic administrators.
         </p>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-8">
+        <div className="bg-surface border border-paper/10 rounded-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2 text-neutral-300">
+              <label htmlFor="email" className="block text-sm font-medium mb-2 text-paper/75">
                 Email
               </label>
               <input type="email" id="email" required autoComplete="email" value={email}
@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2 text-neutral-300">
+              <label htmlFor="password" className="block text-sm font-medium mb-2 text-paper/75">
                 Password
               </label>
               <input type="password" id="password" required autoComplete="current-password"
@@ -68,14 +68,14 @@ export default function AdminLoginPage() {
             )}
 
             <button type="submit" disabled={busy}
-              className="w-full bg-white text-neutral-950 font-semibold py-2.5 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50">
+              className="w-full bg-orange text-void font-semibold py-3 rounded-full hover:bg-orange/90 transition-colors disabled:opacity-50">
               {busy ? "Signing in…" : "Sign In to Dashboard"}
             </button>
           </form>
         </div>
 
-        <p className="text-sm text-neutral-500 text-center mt-6">
-          <Link href="/login" className="underline hover:no-underline">
+        <p className="text-sm text-paper/50 text-center mt-6">
+          <Link href="/login" className="text-orange underline hover:no-underline">
             ← Back to client sign-in
           </Link>
         </p>

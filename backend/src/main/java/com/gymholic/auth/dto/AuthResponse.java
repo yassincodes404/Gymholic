@@ -20,4 +20,12 @@ public class AuthResponse {
     private String firstName;
     private String lastName;
     private Role role;
+    private Boolean emailVerified;
+
+    /**
+     * True when the account still needs email confirmation: instead of
+     * tokens the response only carries the email, and the client should
+     * ask for the 6-digit code that was just sent out.
+     */
+    private Boolean verificationRequired;
 }

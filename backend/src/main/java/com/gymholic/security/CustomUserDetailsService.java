@@ -9,11 +9,16 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
+
+    /** Extra authority granted when the user confirmed their email address.
+     *  Required for payments, orders, cart and bookings. */
+    public static final String AUTH_EMAIL_VERIFIED = "EMAIL_VERIFIED";
 
     private final UserRepository userRepository;
 
@@ -23,6 +28,12 @@ public class CustomUserDetailsService implements UserDetailsService {
             .orElseThrow(() ->
                 new UsernameNotFoundException("User not found with email: " + email));
 
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        if (user.isEmailVerified()) {
+            authorities.add(new SimpleGrantedAuthority(AUTH_EMAIL_VERIFIED));
+        }
+
         return new org.springframework.security.core.userdetails.User(
             user.getEmail(),
             user.getPassword(),
@@ -30,7 +41,7 @@ public class CustomUserDetailsService implements UserDetailsService {
             true,
             true,
             true,
-            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+            authorities
         );
     }
 }

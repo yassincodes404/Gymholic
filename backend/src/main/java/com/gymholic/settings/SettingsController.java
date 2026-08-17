@@ -23,8 +23,9 @@ public class SettingsController {
     }
 
     /**
-     * Public booking prices (USD) and feature flags that drive what the
-     * website charges and shows. Managed from the admin settings page.
+     * Public booking prices (USD) that drive what the website charges and
+     * shows. Managed from the admin settings page. All three services are
+     * paid — including the open time session.
      */
     @GetMapping("/pricing")
     @PreAuthorize("permitAll()")
@@ -34,8 +35,7 @@ public class SettingsController {
         pricing.put("currency", all.getOrDefault("BOOKING_CURRENCY", "USD"));
         pricing.put("strategyCall", parse(all.get("BOOKING_PRICE_STRATEGY_CALL"), 125));
         pricing.put("inPerson", parse(all.get("BOOKING_PRICE_IN_PERSON"), 275));
-        pricing.put("discovery", 0);
-        pricing.put("freeConsultationEnabled", settingsService.getBool("BOOKING_FREE_CONSULTATION_ENABLED", true));
+        pricing.put("openSession", parse(all.get("BOOKING_PRICE_OPEN_SESSION"), 150));
         pricing.put("academyMembershipPrice", parse(all.get("ACADEMY_MEMBERSHIP_PRICE"), 29));
         pricing.put("academyPrePurchaseEnabled", settingsService.getBool("ACADEMY_PRE_PURCHASE_ENABLED", true));
         return ResponseEntity.ok(ApiResponse.success(pricing));

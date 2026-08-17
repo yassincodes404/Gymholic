@@ -34,7 +34,7 @@ export function BookingSummary({
       <div className="flex justify-between items-center">
         <span className="text-sm opacity-70">Total</span>
         <span className="display-text text-2xl" style={{ color: "var(--orange)" }}>
-          {service.isFree ? "Free" : `${service.price} ${service.currency}`}
+          {service.price} {service.currency}
         </span>
       </div>
     </div>

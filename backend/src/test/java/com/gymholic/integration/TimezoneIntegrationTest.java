@@ -121,7 +121,7 @@ class TimezoneIntegrationTest {
      * Expert and client in same timezone should see identical times.
      */
     @Test
-    @WithMockUser(username = "client@dubai.com", roles = "CLIENT")
+    @WithMockUser(username = "client@dubai.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testSameTimezone_DubaiToDubai() throws Exception {
         // Given: Expert in Dubai, availability 10:00-10:45
         User dubaiExpert = User.builder()
@@ -177,7 +177,7 @@ class TimezoneIntegrationTest {
      * Cairo expert 10:00 → Dubai client sees converted time
      */
     @Test
-    @WithMockUser(username = "client@dubai.com", roles = "CLIENT")
+    @WithMockUser(username = "client@dubai.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testDifferentTimezone_CairoToDubai() throws Exception {
         // Given: Cairo expert has availability 10:00-18:00
 
@@ -232,7 +232,7 @@ class TimezoneIntegrationTest {
      * Cairo (UTC+2) to New York (UTC-5/-4) = 6-7 hour difference
      */
     @Test
-    @WithMockUser(username = "client@newyork.com", roles = "CLIENT")
+    @WithMockUser(username = "client@newyork.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testCrossDateLine_CairoToNewYork() throws Exception {
         LocalDate nextMonday = LocalDate.now().with(DayOfWeek.MONDAY);
         if (!nextMonday.isAfter(LocalDate.now())) {
@@ -279,7 +279,7 @@ class TimezoneIntegrationTest {
      * Verify booking stores UTC instant with timezone context.
      */
     @Test
-    @WithMockUser(username = "client@dubai.com", roles = "CLIENT")
+    @WithMockUser(username = "client@dubai.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testBookingCreation_PreservesTimezoneContext() throws Exception {
         // Given: A specific UTC instant (representing Cairo 10:00 = Dubai 12:00)
         LocalDate nextMonday = LocalDate.now().with(DayOfWeek.MONDAY).plusWeeks(1);
@@ -335,7 +335,7 @@ class TimezoneIntegrationTest {
      * Verify system rejects invalid timezone IDs.
      */
     @Test
-    @WithMockUser(username = "client@dubai.com", roles = "CLIENT")
+    @WithMockUser(username = "client@dubai.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testInvalidTimezone_Rejected() throws Exception {
         LocalDate nextMonday = LocalDate.now().with(DayOfWeek.MONDAY).plusWeeks(1);
 
@@ -354,7 +354,7 @@ class TimezoneIntegrationTest {
      * but we verify that instants are stored and retrieved consistently.
      */
     @Test
-    @WithMockUser(username = "client@dubai.com", roles = "CLIENT")
+    @WithMockUser(username = "client@dubai.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testServerTimezoneIndependence() throws Exception {
         // Given: Create booking with specific instant
         LocalDate nextMonday = LocalDate.now().with(DayOfWeek.MONDAY).plusWeeks(1);
@@ -415,7 +415,7 @@ class TimezoneIntegrationTest {
      * Verify system prevents double-booking even with different client timezones.
      */
     @Test
-    @WithMockUser(username = "client@dubai.com", roles = "CLIENT")
+    @WithMockUser(username = "client@dubai.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void testSlotConflict_AcrossTimezones() throws Exception {
         // Given: Existing booking at Cairo 10:00
         LocalDate nextMonday = LocalDate.now().with(DayOfWeek.MONDAY).plusWeeks(1);
