@@ -44,6 +44,9 @@ jobs:
           port: ${{ secrets.HOSTINGER_PORT }}
           source: "docker-compose.prod.yml,docker-compose.prod.hostinger.yml"
           target: "~/gymholic"
+          # The runner→VPS SSH handshake occasionally stalls past the 30s
+          # default; give it room instead of failing the deploy.
+          timeout: 120s
 
       - name: Deploy to Hostinger via SSH
         uses: appleboy/ssh-action@v1.2.4
