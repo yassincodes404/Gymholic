@@ -38,6 +38,13 @@ logging:
     com.gymholic: INFO
     org.springframework.security: WARN
 
+# The API surface is not public documentation — keep swagger/openapi internal.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 management:
   endpoint:
     health:

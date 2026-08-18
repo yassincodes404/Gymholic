@@ -45,6 +45,16 @@ public class EmailVerificationCode {
     @Column(nullable = false)
     private int attempts = 0;
 
+    /** What the code unlocks: VERIFY (sign-up/login confirmation), LOGIN
+     *  (passwordless sign-in), EMAIL_CHANGE (confirm a new address). */
+    @Builder.Default
+    @Column(nullable = false, length = 32)
+    private String purpose = "VERIFY";
+
+    /** Pending new address while purpose = EMAIL_CHANGE. */
+    @Column(name = "target_email", length = 255)
+    private String targetEmail;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

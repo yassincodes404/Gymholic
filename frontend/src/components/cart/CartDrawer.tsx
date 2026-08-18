@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCart, useCartItems } from "./CartContext";
 import { BlueprintCover } from "@/components/blueprints/BlueprintCover";
 import { MagneticButton } from "@/components/motion/MagneticButton";
@@ -40,9 +41,9 @@ export function CartDrawer() {
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
             <p className="display-text text-2xl mb-3">Your cart is empty.</p>
             <p className="text-sm opacity-60 mb-8">Build your gym system with Gymholic Blueprints.</p>
-            <a href="/blueprints" onClick={close} className="btn-pill">
+            <Link href="/blueprints" onClick={close} className="btn-pill">
               Explore Blueprints
-            </a>
+            </Link>
           </div>
         ) : (
           <>

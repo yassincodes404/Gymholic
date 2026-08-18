@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { BlueprintsHero } from "@/components/blueprints/BlueprintsHero";
@@ -49,8 +50,8 @@ export default function BlueprintsPage() {
             </div>
 
             <div className="flex flex-wrap gap-4 justify-center mt-12">
-              <a href="/book" className="btn-pill">Book a Consultation</a>
-              <a href="/academy#waitlist" className="btn-pill btn-pill--ghost">Join the Academy Waitlist</a>
+              <Link href="/book" className="btn-pill">Book a Consultation</Link>
+              <Link href="/academy#waitlist" className="btn-pill btn-pill--ghost">Join the Academy Waitlist</Link>
             </div>
           </div>
         </section>

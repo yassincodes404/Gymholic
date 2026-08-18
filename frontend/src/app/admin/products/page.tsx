@@ -5,6 +5,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 const PRODUCT_CATEGORIES = [
@@ -65,9 +66,9 @@ export default function AdminProductsPage() {
           <li>✓ Customer payment history on the account page lists product orders automatically</li>
           <li>✓ Order confirmation emails to the customer and the admin inbox</li>
           <li>✓ Payment gateway —{" "}
-            <a href="/admin/integrations" className="underline hover:no-underline text-paper/90">
+            <Link href="/admin/integrations" className="underline hover:no-underline text-paper/90">
               connect Paymob under Integrations
-            </a>{" "}
+            </Link>{" "}
             to take real card payments at launch
           </li>
         </ul>

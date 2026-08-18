@@ -170,7 +170,9 @@ class BookingMeetLinkRegressionTest {
             eq(trainer.getFirstName()),
             anyString(), // start time
             eq("45"), // duration
-            meetLinkCaptor.capture()
+            meetLinkCaptor.capture(),
+            anyString(), // meeting label
+            any(Booking.class)
         );
 
         assertEquals(REAL_MEET_LINK, meetLinkCaptor.getValue(), 
@@ -242,7 +244,9 @@ class BookingMeetLinkRegressionTest {
         ArgumentCaptor<String> emailMeetLinkCaptor = ArgumentCaptor.forClass(String.class);
         verify(notificationService).sendBookingConfirmation(
             anyString(), anyString(), anyString(), anyString(), anyString(),
-            emailMeetLinkCaptor.capture()
+            emailMeetLinkCaptor.capture(),
+            anyString(), // meeting label
+            any(Booking.class)
         );
         assertEquals(REAL_MEET_LINK, emailMeetLinkCaptor.getValue());
         

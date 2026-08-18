@@ -7,6 +7,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { adminFetch } from "@/lib/adminApi";
 
@@ -158,7 +159,7 @@ export default function AdminSettingsPage() {
               </dl>
               <p className="text-xs text-paper/40 mt-3">
                 Paymob credentials are managed under{" "}
-                <a href="/admin/integrations" className="underline hover:no-underline">Integrations</a>.
+                <Link href="/admin/integrations" className="underline hover:no-underline">Integrations</Link>.
               </p>
             </div>
           )}

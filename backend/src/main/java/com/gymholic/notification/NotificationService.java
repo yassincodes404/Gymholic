@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -12,6 +13,7 @@ import java.util.Map;
 public class NotificationService {
 
     private final EmailService emailService;
+    private final IcsService icsService;
 
     public void sendBookingCreated(String toEmail, String clientName,
                                    String trainerName, String dateTime, String paymentUrl) {
@@ -43,6 +45,20 @@ public class NotificationService {
 
     public void sendBookingConfirmation(String toEmail, String clientName,
                                          String trainerName, String dateTime, String duration, String meetLink) {
+        sendBookingConfirmation(toEmail, clientName, trainerName, dateTime, duration,
+            meetLink, "Google Meet", null);
+    }
+
+    /**
+     * Confirmation with the calendar invite attached and the meeting
+     * platform called out (Zoom when configured, Google Meet otherwise).
+     */
+    public void sendBookingConfirmation(String toEmail, String clientName,
+                                         String trainerName, String dateTime, String duration,
+                                         String meetLink, String meetingLabel,
+                                         com.gymholic.booking.entity.Booking booking) {
+        List<EmailService.EmailAttachment> attachments =
+            booking != null ? List.of(icsService.bookingInvite(booking)) : List.of();
         emailService.sendEmail(
             toEmail,
             "Booking Confirmed — Gymholic",
@@ -52,8 +68,10 @@ public class NotificationService {
                 "trainerName", trainerName,
                 "dateTime", dateTime,
                 "duration", duration,
-                "meetLink", meetLink != null ? meetLink : ""
-            ));
+                "meetLink", meetLink != null ? meetLink : "",
+                "meetingLabel", meetingLabel != null ? meetingLabel : "Google Meet"
+            ),
+            attachments);
     }
 
     public void sendBookingRescheduled(String toEmail, String clientName,
@@ -68,6 +86,65 @@ public class NotificationService {
                 "oldDateTime", oldDateTime,
                 "newDateTime", newDateTime,
                 "meetLink", meetLink != null ? meetLink : ""
+            ));
+    }
+
+    /** Rescheduled confirmation with a refreshed calendar invite attached. */
+    public void sendBookingRescheduledWithInvite(String toEmail, String clientName,
+                                                 String trainerName, String oldDateTime, String newDateTime,
+                                                 String meetLink,
+                                                 com.gymholic.booking.entity.Booking booking) {
+        emailService.sendEmail(
+            toEmail,
+            "Booking Rescheduled — Gymholic",
+            "booking-rescheduled",
+            Map.of(
+                "clientName", clientName,
+                "trainerName", trainerName,
+                "oldDateTime", oldDateTime,
+                "newDateTime", newDateTime,
+                "meetLink", meetLink != null ? meetLink : ""
+            ),
+            List.of(icsService.bookingInvite(booking)));
+    }
+
+    /** Admin rejected the booking (slot unavailable, payment issue, …). */
+    public void sendBookingRejected(String toEmail, String clientName,
+                                    String dateTime, String reason) {
+        emailService.sendEmail(
+            toEmail,
+            "Booking Could Not Be Confirmed — Gymholic",
+            "booking-rejected",
+            Map.of(
+                "clientName", clientName,
+                "dateTime", dateTime,
+                "reason", reason != null && !reason.isBlank() ? reason : "The requested slot is no longer available."
+            ));
+    }
+
+    /** Session delivered and closed — thank-you note to the client. */
+    public void sendBookingCompleted(String toEmail, String clientName,
+                                     String trainerName, String dateTime) {
+        emailService.sendEmail(
+            toEmail,
+            "Thanks for your session — Gymholic",
+            "booking-completed",
+            Map.of(
+                "clientName", clientName,
+                "trainerName", trainerName,
+                "dateTime", dateTime
+            ));
+    }
+
+    /** Post-session follow-up a day later with a rebooking nudge. */
+    public void sendFollowUp(String toEmail, String clientName, String bookUrl) {
+        emailService.sendEmail(
+            toEmail,
+            "Quick follow-up on your Gymholic session",
+            "booking-follow-up",
+            Map.of(
+                "clientName", clientName,
+                "bookUrl", bookUrl
             ));
     }
 
@@ -108,6 +185,46 @@ public class NotificationService {
                 "name", name,
                 "resetLink", resetLink
             ));
+    }
+
+    public void sendPasswordChanged(String toEmail, String name) {
+        emailService.sendEmail(
+            toEmail,
+            "Your Gymholic password was changed",
+            "password-changed",
+            Map.of("name", name != null ? name : "there"));
+    }
+
+    public void sendAccountCreated(String toEmail, String name) {
+        emailService.sendEmail(
+            toEmail,
+            "Your Gymholic account is created",
+            "account-created",
+            Map.of("name", name != null ? name : "there"));
+    }
+
+    public void sendAccountActivated(String toEmail, String name) {
+        emailService.sendEmail(
+            toEmail,
+            "Your Gymholic account is active again",
+            "account-activated",
+            Map.of("name", name != null ? name : "there"));
+    }
+
+    public void sendAccountDeactivated(String toEmail, String name) {
+        emailService.sendEmail(
+            toEmail,
+            "Your Gymholic account has been deactivated",
+            "account-deactivated",
+            Map.of("name", name != null ? name : "there"));
+    }
+
+    public void sendAccountDeleted(String toEmail, String name) {
+        emailService.sendEmail(
+            toEmail,
+            "Your Gymholic account has been deleted",
+            "account-deleted",
+            Map.of("name", name != null ? name : "there"));
     }
 
     public void sendAdminNewBooking(String adminEmail, String clientName, String clientEmail,

@@ -4,6 +4,7 @@ import com.gymholic.auth.dto.AuthResponse;
 import com.gymholic.auth.dto.LoginRequest;
 import com.gymholic.common.enums.Role;
 import com.gymholic.common.exception.BadRequestException;
+import com.gymholic.notification.LoginNotificationService;
 import com.gymholic.security.JwtService;
 import com.gymholic.user.UserRepository;
 import com.gymholic.user.entity.User;
@@ -28,6 +29,7 @@ public class AdminAuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
+    private final LoginNotificationService loginNotificationService;
 
     public AuthResponse adminLogin(LoginRequest request) {
         log.info("Admin login attempt for email: {}", request.getEmail());
@@ -54,6 +56,7 @@ public class AdminAuthService {
         String accessToken = jwtService.generateToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);
 
+        loginNotificationService.notifyNewLoginIfNeeded(user, "admin dashboard");
         return buildAuthResponse(user, accessToken, refreshToken);
     }
 

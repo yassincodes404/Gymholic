@@ -92,6 +92,21 @@ public class BookingController {
     }
 
     /**
+     * Admin action: decline a pending booking. The client is emailed the
+     * reason; any captured payment is refunded manually when appropriate.
+     */
+    @PutMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BookingDto>> rejectBooking(
+            @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, String> request) {
+        String reason = request != null ? request.get("reason") : null;
+        BookingDto booking = bookingService.rejectBooking(id, reason);
+        return ResponseEntity.ok(ApiResponse.success(
+            "Booking rejected — the client has been notified", booking));
+    }
+
+    /**
      * Marks a session as a no-show (admin action). Emails the client a
      * one-time reschedule link — or a refund/rebook offer when the expert
      * missed the session too.

@@ -21,6 +21,7 @@ public class AuthController {
     private final AuthService authService;
     private final GoogleSignInService googleSignInService;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -42,6 +43,28 @@ public class AuthController {
             @Valid @RequestBody GoogleAuthRequest request) {
         AuthResponse response = googleSignInService.authenticateWithGoogle(request.getIdToken());
         return ResponseEntity.ok(ApiResponse.success("Google sign-in successful", response));
+    }
+
+    /**
+     * Passwordless sign-in step 1: emails a 6-digit code when the address
+     * belongs to an active account. Always answers success so accounts
+     * can't be enumerated.
+     */
+    @PostMapping("/otp/request")
+    public ResponseEntity<ApiResponse<Void>> requestOtp(
+            @RequestBody Map<String, String> request) {
+        emailVerificationService.requestLoginCode(request.get("email"));
+        return ResponseEntity.ok(ApiResponse.success(
+            "If that email has an account, a sign-in code is on its way.", null));
+    }
+
+    /** Passwordless sign-in step 2: validates the code and returns tokens. */
+    @PostMapping("/otp/verify")
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyOtp(
+            @RequestBody Map<String, String> request) {
+        AuthResponse response = emailVerificationService.verifyLoginCode(
+            request.get("email"), request.get("code"));
+        return ResponseEntity.ok(ApiResponse.success("Signed in", response));
     }
 
     /**
@@ -72,17 +95,21 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Token refreshed", response));
     }
 
+    /** Emails a single-use reset link (valid 30 minutes). Never reveals whether the email is registered. */
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
             @RequestBody Map<String, String> request) {
-        // TODO: Implement password reset email
-        return ResponseEntity.ok(ApiResponse.success("Password reset email sent", null));
+        passwordResetService.requestReset(request.get("email"));
+        return ResponseEntity.ok(ApiResponse.success(
+            "If that email has an account, a reset link is on its way.", null));
     }
 
+    /** Completes a reset with the token from the emailed link. */
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @RequestBody Map<String, String> request) {
-        // TODO: Implement password reset
+        passwordResetService.resetPassword(
+            request.get("token"), request.get("password"));
         return ResponseEntity.ok(ApiResponse.success("Password reset successful", null));
     }
 }

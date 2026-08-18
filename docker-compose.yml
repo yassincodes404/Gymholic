@@ -99,6 +99,9 @@ services:
       NEXT_PUBLIC_BACKEND_API_BASE_URL: ${NEXT_PUBLIC_BACKEND_API_BASE_URL:-http://localhost:8080/api}
       NEXT_PUBLIC_DEFAULT_TRAINER_ID: ${NEXT_PUBLIC_DEFAULT_TRAINER_ID:-1}
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Server-side admin gate + backend proxy (see src/middleware.ts)
+      ADMIN_ACCESS_KEY: ${ADMIN_ACCESS_KEY:-}
+      BACKEND_INTERNAL_URL: http://backend:8080/api
     ports:
       - "3000:3000"
     volumes:

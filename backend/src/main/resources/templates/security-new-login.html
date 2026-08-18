@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 40px;">
+        <h1 style="color: #1a1a1a; margin-bottom: 24px;">New sign-in to your account 🔐</h1>
+        <p style="color: #333; font-size: 16px;">
+            Hi <span th:text="${name}">Name</span>,
+        </p>
+        <p style="color: #333; font-size: 16px;">
+            Your Gymholic account was just signed in to from a new device.
+        </p>
+        <div style="background: #fff7ed; border-left: 4px solid #f97316; padding: 16px; margin: 24px 0; border-radius: 4px;">
+            <p style="margin: 0 0 8px 0; color: #7c2d12; font-size: 14px;">
+                📅 <span th:text="${when}">When</span>
+            </p>
+            <p style="margin: 0 0 8px 0; color: #7c2d12; font-size: 14px;">
+                💻 Device: <span th:text="${device}">Chrome on Windows</span>
+            </p>
+            <p style="margin: 0 0 8px 0; color: #7c2d12; font-size: 14px;">
+                🌐 IP address: <span th:text="${ip}">0.0.0.0</span>
+            </p>
+            <p style="margin: 0; color: #7c2d12; font-size: 14px;">
+                🔑 Method: <span th:text="${method}">password</span>
+            </p>
+        </div>
+        <p style="color: #666; font-size: 14px;">
+            This is an automated security notice — you'll only get it once
+            per device. If this wasn't you, change your password right away
+            and reply to this email.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;">
+        <p style="color: #999; font-size: 12px; text-align: center;">
+            Gymholic — Your fitness journey starts here.
+        </p>
+    </div>
+</body>
+</html>

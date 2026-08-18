@@ -6,6 +6,7 @@ import com.gymholic.common.enums.BookingStatus;
 import com.gymholic.common.util.DateTimeUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,15 @@ public class ReminderScheduler {
 
     private static final String REMINDER_FLAG_PREFIX = "booking_reminder_sent:";
     private static final String SOON_FLAG_PREFIX = "booking_reminder_1h_sent:";
+    private static final String FOLLOW_UP_FLAG_PREFIX = "booking_follow_up_sent:";
+
+    /** First configured frontend origin — used for links inside emails. */
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    private String allowedOrigins;
+
+    private String frontendUrl() {
+        return allowedOrigins.split(",")[0].trim();
+    }
 
     /**
      * Runs every hour — sends reminders for sessions starting within the next 24 hours.
@@ -97,9 +107,9 @@ public class ReminderScheduler {
 
     /**
      * Runs every 15 minutes — sessions whose end time passed 30+ minutes ago
-     * while still CONFIRMED are closed as COMPLETED (bookkeeping only, no
-     * email). The admin can override a session to NO_SHOW afterwards, which
-     * emails the client a reschedule link.
+     * while still CONFIRMED are closed as COMPLETED and the client gets the
+     * thank-you email. The admin can override a session to NO_SHOW
+     * afterwards, which emails the client a reschedule link.
      */
     @Scheduled(cron = "0 5/15 * * * *")
     public void autoCompletePastSessions() {
@@ -109,9 +119,56 @@ public class ReminderScheduler {
             try {
                 booking.setStatus(BookingStatus.COMPLETED);
                 bookingRepository.save(booking);
+
+                notificationService.sendBookingCompleted(
+                    booking.getClient().getEmail(),
+                    booking.getClient().getFirstName(),
+                    booking.getTrainer().getFirstName(),
+                    displayInZone(booking.getStartTime(), booking.getClientTimezone()));
                 log.info("Auto-completed past session booking #{}", booking.getId());
             } catch (Exception e) {
                 log.error("Failed to auto-complete booking #{}: {}", booking.getId(), e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Runs hourly — one day after a completed session the client gets a
+     * follow-up email with a rebooking nudge. Switch off with the
+     * FOLLOW_UP_ENABLED admin setting.
+     */
+    @Scheduled(cron = "0 10 * * * *")
+    public void sendPostSessionFollowUps() {
+        if (!settingsService.getBool("FOLLOW_UP_ENABLED", true)) {
+            return;
+        }
+        Instant now = Instant.now();
+        Instant dayAgo = now.minus(24, ChronoUnit.HOURS);
+        Instant twoDaysAgo = now.minus(48, ChronoUnit.HOURS);
+
+        List<Booking> completed = bookingRepository
+            .findUpcomingByStatus(BookingStatus.COMPLETED, twoDaysAgo, dayAgo);
+
+        for (Booking booking : completed) {
+            if (booking.getEndTime() == null
+                    || booking.getEndTime().isAfter(dayAgo)
+                    || booking.getEndTime().isBefore(twoDaysAgo)) {
+                continue; // only sessions that ended 24–48h ago
+            }
+            try {
+                String flagKey = FOLLOW_UP_FLAG_PREFIX + booking.getId();
+                Boolean first = redisTemplate.opsForValue().setIfAbsent(flagKey, "1", Duration.ofDays(8));
+                if (Boolean.FALSE.equals(first)) {
+                    continue; // follow-up already sent
+                }
+
+                notificationService.sendFollowUp(
+                    booking.getClient().getEmail(),
+                    booking.getClient().getFirstName(),
+                    frontendUrl() + "/book");
+                log.info("Sent follow-up for booking #{} to {}", booking.getId(), booking.getClient().getEmail());
+            } catch (Exception e) {
+                log.error("Failed to send follow-up for booking #{}: {}", booking.getId(), e.getMessage());
             }
         }
     }

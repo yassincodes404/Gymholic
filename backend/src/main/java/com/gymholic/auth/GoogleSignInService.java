@@ -8,6 +8,7 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.gymholic.auth.dto.AuthResponse;
 import com.gymholic.common.enums.Role;
 import com.gymholic.common.exception.BadRequestException;
+import com.gymholic.notification.LoginNotificationService;
 import com.gymholic.security.JwtService;
 import com.gymholic.user.UserRepository;
 import com.gymholic.user.entity.User;
@@ -31,6 +32,7 @@ public class GoogleSignInService {
     private final UserDetailsService userDetailsService;
     private final AdminBootstrapService adminBootstrapService;
     private final EmailVerificationService emailVerificationService;
+    private final LoginNotificationService loginNotificationService;
 
     @Value("${google.client.id}")
     private String googleClientId;
@@ -105,6 +107,7 @@ public class GoogleSignInService {
             String accessToken = jwtService.generateToken(userDetails);
             String refreshToken = jwtService.generateRefreshToken(userDetails);
 
+            loginNotificationService.notifyNewLoginIfNeeded(user, "Google");
             return buildAuthResponse(user, accessToken, refreshToken);
 
         } catch (BadRequestException e) {

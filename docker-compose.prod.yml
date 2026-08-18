@@ -80,6 +80,11 @@ services:
     image: ghcr.io/yassincodes404/gymholic-frontend:${IMAGE_TAG:-latest}
     container_name: gymholic-frontend
     restart: unless-stopped
+    environment:
+      # Server-side (never NEXT_PUBLIC_): gates /admin behind a 404 and lets
+      # the app-api proxy reach the backend container directly.
+      ADMIN_ACCESS_KEY: ${ADMIN_ACCESS_KEY:-}
+      BACKEND_INTERNAL_URL: http://backend:8080/api
     expose:
       - "3000"
     networks:

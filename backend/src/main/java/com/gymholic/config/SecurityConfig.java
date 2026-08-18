@@ -1,5 +1,7 @@
 package com.gymholic.config;
 
+import com.gymholic.security.AdminAccessKeyFilter;
+import com.gymholic.security.AuthRateLimitFilter;
 import com.gymholic.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +32,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AuthRateLimitFilter authRateLimitFilter;
+    private final AdminAccessKeyFilter adminAccessKeyFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -75,6 +79,8 @@ public class SecurityConfig {
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(adminAccessKeyFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class);
 

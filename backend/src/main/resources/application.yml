@@ -8,12 +8,20 @@ app:
     secret: ${ENCRYPTION_SECRET:fallback_secret_must_change_in_prod}
   jwt:
     secret: ${JWT_SECRET:default-secret-for-local-dev-only}
-    expiration-ms: 86400000 # 1 day
-    refresh-expiration-ms: 604800000 # 7 days
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}       # 1 day by default
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000} # 7 days
   cors:
     allowed-origins: ${FRONTEND_URL:http://localhost:3000}
   admin:
     bootstrap-emails: ${ADMIN_BOOTSTRAP_EMAILS:}
+    # Shared secret that gates the admin login endpoint (404 without it).
+    access-key: ${ADMIN_ACCESS_KEY:}
+  zoom:
+    # Server-to-server OAuth credentials; when all three are set, confirmed
+    # sessions get a real Zoom meeting instead of a Google Meet link.
+    account-id: ${ZOOM_ACCOUNT_ID:}
+    client-id: ${ZOOM_CLIENT_ID:}
+    client-secret: ${ZOOM_CLIENT_SECRET:}
   mail:
     from: ${MAIL_FROM:noreply@gymholic.com}
     from-name: ${MAIL_FROM_NAME:Gymholic}

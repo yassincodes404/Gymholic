@@ -47,6 +47,7 @@ public class BookingService {
     private final com.gymholic.settings.SettingsService settingsService;
     private final CalendarService calendarService;
     private final NotificationService notificationService;
+    private final com.gymholic.calendar.ZoomService zoomService;
 
     /** First configured frontend origin — used for links inside emails. */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
@@ -147,8 +148,8 @@ public class BookingService {
         );
         
         boolean hasConflict = conflicts.stream()
-            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED);
-            
+            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED && b.getStatus() != BookingStatus.REJECTED);
+
         if (hasConflict) {
             throw new BadRequestException("The requested time slot is not available due to conflicts");
         }
@@ -243,32 +244,51 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.CONFIRMED);
 
-        // Generate Calendar Event and Meet Link
-        // Convert Instant to LocalDateTime in expert's timezone for Calendar API
-        // Best-effort: if Google is not connected (or the API fails), the booking
-        // still confirms — it just has no Meet link until Google is reconnected.
+        // Meeting link: a real Zoom meeting when Zoom is configured, otherwise
+        // the Google Calendar event's Meet link. Best-effort either way — the
+        // booking still confirms if the APIs fail, it just has no link yet.
+        String meetingLabel = "Google Meet";
         try {
             ZoneId expertZone = booking.getTrainer().getZoneId();
-            LocalDateTime startInExpertTz = LocalDateTime.ofInstant(booking.getStartTime(), expertZone);
-            LocalDateTime endInExpertTz = LocalDateTime.ofInstant(booking.getEndTime(), expertZone);
+            long minutes = Duration.between(booking.getStartTime(), booking.getEndTime()).toMinutes();
 
-            String summary = "Consultation: " + booking.getClient().getFirstName() + " & " + booking.getTrainer().getFirstName();
-            CalendarEventDto event = calendarService.createEvent(
-                    booking.getTrainer().getId(),
-                    summary,
-                    booking.getNotes(),
-                    startInExpertTz,  // Calendar service will use expert timezone
-                    endInExpertTz,
-                    booking.getClient().getEmail()
-            );
-
-            booking.setMeetLink(event.getMeetLink()); // Real Meet link from the Calendar event
-            booking.setExternalEventId(event.getEventId());
+            var zoomLink = zoomService.createMeeting(
+                "Gymholic consultation: " + booking.getClient().getFirstName()
+                    + " & " + booking.getTrainer().getFirstName(),
+                booking.getStartTime(), (int) minutes);
+            if (zoomLink.isPresent()) {
+                booking.setMeetLink(zoomLink.get());
+                meetingLabel = "Zoom";
+            }
         } catch (Exception e) {
-            log.warn("Google Calendar event creation failed for booking {}: {}. Booking confirmed without Meet link.",
-                id, e.getMessage());
+            log.warn("Zoom meeting creation failed for booking {}: {}", id, e.getMessage());
         }
-        
+
+        if (booking.getMeetLink() == null || booking.getMeetLink().isBlank()) {
+            try {
+                ZoneId expertZone = booking.getTrainer().getZoneId();
+                LocalDateTime startInExpertTz = LocalDateTime.ofInstant(booking.getStartTime(), expertZone);
+                LocalDateTime endInExpertTz = LocalDateTime.ofInstant(booking.getEndTime(), expertZone);
+
+                String summary = "Consultation: " + booking.getClient().getFirstName() + " & " + booking.getTrainer().getFirstName();
+                CalendarEventDto event = calendarService.createEvent(
+                        booking.getTrainer().getId(),
+                        summary,
+                        booking.getNotes(),
+                        startInExpertTz,  // Calendar service will use expert timezone
+                        endInExpertTz,
+                        booking.getClient().getEmail()
+                );
+
+                booking.setMeetLink(event.getMeetLink()); // Real Meet link from the Calendar event
+                booking.setExternalEventId(event.getEventId());
+                meetingLabel = "Google Meet";
+            } catch (Exception e) {
+                log.warn("Google Calendar event creation failed for booking {}: {}. Booking confirmed without Meet link.",
+                    id, e.getMessage());
+            }
+        }
+
         Booking saved = bookingRepository.save(booking);
 
         notificationService.sendBookingConfirmation(
@@ -277,7 +297,9 @@ public class BookingService {
             saved.getTrainer().getFirstName(),
             clientDisplayTime(saved),
             "45",
-            saved.getMeetLink()
+            saved.getMeetLink(),
+            meetingLabel,
+            saved
         );
 
         // Notify the expert: consultation confirmed + paid (amount from the completed payment)
@@ -370,15 +392,47 @@ public class BookingService {
 
         updateCalendarEvent(saved);
 
-        notificationService.sendBookingRescheduled(
+        notificationService.sendBookingRescheduledWithInvite(
             saved.getClient().getEmail(),
             saved.getClient().getFirstName(),
             saved.getTrainer().getFirstName(),
             displayTime(oldStartTime, saved.getClientTimezone()),
             displayTime(saved.getStartTime(), saved.getClientTimezone()),
-            saved.getMeetLink()
+            saved.getMeetLink(),
+            saved
         );
 
+        return mapToDto(saved);
+    }
+
+    /**
+     * Admin action: declines a pending booking (slot no longer workable,
+     * payment issue, …). The client is emailed with the reason — paid
+     * bookings should be refunded manually when appropriate.
+     */
+    @Transactional
+    public BookingDto rejectBooking(Long id, String reason) {
+        Booking booking = bookingRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+
+        if (booking.getStatus() == BookingStatus.REJECTED) {
+            return mapToDto(booking); // idempotent
+        }
+        if (booking.getStatus() != BookingStatus.PENDING) {
+            throw new BadRequestException("Only pending bookings can be rejected");
+        }
+
+        booking.setStatus(BookingStatus.REJECTED);
+        booking.setCancellationReason(reason);
+        Booking saved = bookingRepository.save(booking);
+
+        notificationService.sendBookingRejected(
+            saved.getClient().getEmail(),
+            saved.getClient().getFirstName(),
+            clientDisplayTime(saved),
+            reason
+        );
+        log.info("Booking {} rejected by admin", id);
         return mapToDto(saved);
     }
 
@@ -401,6 +455,13 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.COMPLETED);
         Booking saved = bookingRepository.save(booking);
+
+        notificationService.sendBookingCompleted(
+            saved.getClient().getEmail(),
+            saved.getClient().getFirstName(),
+            saved.getTrainer().getFirstName(),
+            clientDisplayTime(saved)
+        );
         log.info("Booking {} marked as completed by admin", id);
         return mapToDto(saved);
     }
@@ -506,13 +567,14 @@ public class BookingService {
 
         updateCalendarEvent(saved);
 
-        notificationService.sendBookingRescheduled(
+        notificationService.sendBookingRescheduledWithInvite(
             saved.getClient().getEmail(),
             saved.getClient().getFirstName(),
             saved.getTrainer().getFirstName(),
             displayTime(oldStartTime, saved.getClientTimezone()),
             displayTime(saved.getStartTime(), saved.getClientTimezone()),
-            saved.getMeetLink()
+            saved.getMeetLink(),
+            saved
         );
         notificationService.sendBookingConfirmation(
             adminNotifyEmail(saved.getTrainer().getEmail()),
@@ -576,7 +638,9 @@ public class BookingService {
         List<Booking> conflicts = bookingRepository.findConflictingBookings(
             trainer.getId(), bufferStart, bufferEnd);
         boolean hasConflict = conflicts.stream()
-            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED && !b.getId().equals(excludeBookingId));
+            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED
+                        && b.getStatus() != BookingStatus.REJECTED
+                        && !b.getId().equals(excludeBookingId));
         if (hasConflict) {
             throw new BadRequestException("The requested time slot is not available due to conflicts");
         }

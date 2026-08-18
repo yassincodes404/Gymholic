@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { buildBackendApiUrl } from "@/lib/api";
 import { fetchCurrentUser, getStoredAuthToken, logout } from "@/lib/auth";
 import type { AuthUser } from "@/lib/auth";
+import { SecuritySettings } from "@/components/account/SecuritySettings";
 
 interface BookingItem {
   id: number;
@@ -19,7 +20,7 @@ interface BookingItem {
   endTime: string;
   trainerName: string;
   meetingTimezone?: string;
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
+  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW" | "REJECTED";
   meetLink: string | null;
 }
 
@@ -47,6 +48,7 @@ const BOOKING_STATUS_STYLES: Record<BookingItem["status"], string> = {
   COMPLETED: "bg-blue-500/15 text-blue-400",
   CANCELLED: "bg-red-500/15 text-red-400",
   NO_SHOW: "bg-paper/10 text-paper/60",
+  REJECTED: "bg-red-500/15 text-red-400",
 };
 
 const PAYMENT_STATUS_STYLES: Record<string, string> = {
@@ -283,6 +285,8 @@ export default function AccountPage() {
             </ul>
           )}
         </section>
+
+        <SecuritySettings />
       </div>
     </main>
   );

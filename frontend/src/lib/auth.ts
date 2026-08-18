@@ -6,7 +6,7 @@
   6-digit email code.
 */
 
-import { buildBackendApiUrl } from "@/lib/api";
+import { buildBackendApiUrl, getFrontendApiPath } from "@/lib/api";
 
 const ACCESS_TOKEN_KEY = "jwt_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
@@ -88,7 +88,11 @@ function persistSession(data: AuthResponse): AuthUser {
 }
 
 async function postAuth(path: string, body: unknown): Promise<AuthUser> {
-  const res = await fetch(buildBackendApiUrl(path), {
+  return postViaUrl(buildBackendApiUrl(path), body);
+}
+
+async function postViaUrl(url: string, body: unknown): Promise<AuthUser> {
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -118,8 +122,57 @@ export function register(input: {
   return postAuth("auth/register", input);
 }
 
+/**
+ * Admin sign-in goes through the Next server route, which injects the
+ * X-Admin-Access-Key header (server-side secret) before hitting the
+ * backend — the key never reaches the browser bundle.
+ */
 export function adminLogin(email: string, password: string) {
-  return postAuth("admin/auth/login", { email, password });
+  return postViaUrl(getFrontendApiPath("/admin/auth/login"), { email, password });
+}
+
+/** Passwordless step 1: asks the backend to email a 6-digit sign-in code. */
+export async function requestOtpCode(email: string): Promise<void> {
+  const res = await fetch(buildBackendApiUrl("auth/otp/request"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok || !payload?.success) {
+    throw new Error(payload?.message || "Could not send the code. Try again shortly.");
+  }
+}
+
+/** Passwordless step 2: exchanges the emailed code for a session. */
+export function verifyOtpCode(email: string, code: string) {
+  return postAuth("auth/otp/verify", { email, code });
+}
+
+/** Forgot-password: always reports success (accounts can't be enumerated). */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const res = await fetch(buildBackendApiUrl("auth/forgot-password"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok || !payload?.success) {
+    throw new Error(payload?.message || "Could not send the reset link. Try again shortly.");
+  }
+}
+
+/** Resets the password with the token from the emailed link. */
+export async function resetPassword(token: string, password: string): Promise<void> {
+  const res = await fetch(buildBackendApiUrl("auth/reset-password"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok || !payload?.success) {
+    throw new Error(payload?.message || "Could not reset the password.");
+  }
 }
 
 export function googleSignIn(idToken: string) {

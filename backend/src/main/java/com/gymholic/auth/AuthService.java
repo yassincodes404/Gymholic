@@ -5,6 +5,8 @@ import com.gymholic.auth.dto.LoginRequest;
 import com.gymholic.auth.dto.RegisterRequest;
 import com.gymholic.common.enums.Role;
 import com.gymholic.common.exception.BadRequestException;
+import com.gymholic.notification.LoginNotificationService;
+import com.gymholic.notification.NotificationService;
 import com.gymholic.security.JwtService;
 import com.gymholic.user.UserRepository;
 import com.gymholic.user.entity.User;
@@ -28,6 +30,8 @@ public class AuthService {
     private final UserDetailsService userDetailsService;
     private final AdminBootstrapService adminBootstrapService;
     private final EmailVerificationService emailVerificationService;
+    private final NotificationService notificationService;
+    private final LoginNotificationService loginNotificationService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -45,6 +49,9 @@ public class AuthService {
             .build();
 
         User savedUser = userRepository.save(user);
+
+        notificationService.sendAccountCreated(
+            savedUser.getEmail(), savedUser.getFirstName());
 
         // New accounts confirm their email with a one-time code before
         // any tokens (or payments) are issued.
@@ -78,6 +85,7 @@ public class AuthService {
         String accessToken = jwtService.generateToken(userDetails);
         String refreshToken = jwtService.generateRefreshToken(userDetails);
 
+        loginNotificationService.notifyNewLoginIfNeeded(user, "password");
         return buildAuthResponse(user, accessToken, refreshToken);
     }
 
