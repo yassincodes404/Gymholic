@@ -19,21 +19,9 @@ import {
   VerificationRequiredError,
   type AuthUser,
 } from "@/lib/auth";
+import { setupGoogleSignIn, whenGoogleReady } from "@/lib/googleSignIn";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize(config: { client_id: string; callback: (r: { credential: string }) => void }): void;
-          renderButton(parent: HTMLElement, options: Record<string, string>): void;
-        };
-      };
-    };
-  }
-}
 
 type Mode = "password" | "otp-request" | "otp-verify";
 
@@ -55,30 +43,24 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || !googleBtnRef.current) return;
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => {
-      window.google?.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response) => {
-          setBusy(true);
-          setError(null);
-          try {
-            const user = await googleSignIn(response.credential);
-            finishSignIn(user);
-          } catch (e) {
-            if (e instanceof VerificationRequiredError) {
-              setPendingEmail(e.email);
-            } else {
-              setError(e instanceof Error ? e.message : "Google sign-in failed.");
-            }
-          } finally {
-            setBusy(false);
-          }
-        },
-      });
+    if (!GOOGLE_CLIENT_ID) return;
+    const detach = setupGoogleSignIn(GOOGLE_CLIENT_ID, async (credential) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const user = await googleSignIn(credential);
+        finishSignIn(user);
+      } catch (e) {
+        if (e instanceof VerificationRequiredError) {
+          setPendingEmail(e.email);
+        } else {
+          setError(e instanceof Error ? e.message : "Google sign-in failed.");
+        }
+      } finally {
+        setBusy(false);
+      }
+    });
+    whenGoogleReady().then(() => {
       if (googleBtnRef.current) {
         window.google?.accounts.id.renderButton(googleBtnRef.current, {
           theme: "outline",
@@ -86,11 +68,8 @@ export default function LoginPage() {
           width: "320",
         });
       }
-    };
-    document.head.appendChild(script);
-    return () => {
-      script.remove();
-    };
+    });
+    return detach;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

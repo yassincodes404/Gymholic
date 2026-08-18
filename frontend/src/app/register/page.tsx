@@ -6,11 +6,19 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import EmailVerificationForm from "@/components/auth/EmailVerificationForm";
-import { register, VerificationRequiredError, type AuthUser } from "@/lib/auth";
+import {
+  googleSignIn,
+  register,
+  VerificationRequiredError,
+  type AuthUser,
+} from "@/lib/auth";
+import { setupGoogleSignIn, whenGoogleReady } from "@/lib/googleSignIn";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,15 +27,49 @@ export default function RegisterPage() {
   const [busy, setBusy] = useState(false);
   /** Set after registration while we wait for the email code. */
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
 
   function finishSignUp(user: AuthUser) {
-    router.push("/");
+    router.push(user.role === "ADMIN" ? "/admin" : "/");
   }
 
   function update(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));
   }
+
+  // Google sign-up: the backend creates/links the account and — on first
+  // sign-in — emails a 6-digit code before any session starts.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const detach = setupGoogleSignIn(GOOGLE_CLIENT_ID, async (credential) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const user = await googleSignIn(credential);
+        finishSignUp(user);
+      } catch (e) {
+        if (e instanceof VerificationRequiredError) {
+          setPendingEmail(e.email);
+        } else {
+          setError(e instanceof Error ? e.message : "Google sign-up failed.");
+        }
+      } finally {
+        setBusy(false);
+      }
+    });
+    whenGoogleReady().then(() => {
+      if (googleBtnRef.current) {
+        window.google?.accounts.id.renderButton(googleBtnRef.current, {
+          theme: "outline",
+          size: "large",
+          width: "320",
+        });
+      }
+    });
+    return detach;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,6 +155,20 @@ export default function RegisterPage() {
                 your first sign-in.
               </p>
             </form>
+          )}
+
+          {!pendingEmail && GOOGLE_CLIENT_ID && (
+            <>
+              <div className="flex items-center gap-3 my-6">
+                <span className="h-px flex-1 bg-paper/10" />
+                <span className="text-xs text-paper/50 uppercase tracking-wider">or</span>
+                <span className="h-px flex-1 bg-paper/10" />
+              </div>
+              <div ref={googleBtnRef} className="flex justify-center" />
+              <p className="text-xs text-paper/50 text-center mt-3">
+                Google accounts also confirm with an emailed code the first time.
+              </p>
+            </>
           )}
 
           {!pendingEmail && (
