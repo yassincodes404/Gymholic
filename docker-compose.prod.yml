@@ -61,6 +61,10 @@ services:
       # gzip for API responses (previously handled by the removed nginx proxy)
       SERVER_COMPRESSION_ENABLED: "true"
       SERVER_COMPRESSION_MIN_RESPONSE_SIZE: 1KB
+      # Force IPv4 egress so Brevo always sees the VPS's stable IPv4 address
+      # (186.240.157.98) instead of a rotating IPv6 — required because the
+      # Brevo account restricts API/SMTP access to authorised IPs.
+      JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     networks:
       - gymholic-net
     depends_on:
