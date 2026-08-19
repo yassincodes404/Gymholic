@@ -93,7 +93,13 @@ export default function RegisterPage() {
     "field-input w-full rounded-lg border border-paper/15 bg-void px-4 py-3 text-paper placeholder-paper/30 focus:outline-none focus:ring-2 focus:ring-orange/60";
 
   return (
-    <main className="min-h-screen bg-void text-paper flex items-center justify-center px-4 py-16">
+    <main className="min-h-screen bg-void text-paper flex items-center justify-center px-4 py-16 relative">
+      <Link
+        href="/"
+        className="absolute top-6 left-6 text-sm text-paper/60 hover:text-paper transition-colors"
+      >
+        ← Back to gymholic.ae
+      </Link>
       <div className="w-full max-w-md">
         <h1 className="text-3xl font-bold tracking-tight text-center mb-2">Create your account</h1>
         <p className="text-paper/60 text-center mb-8">

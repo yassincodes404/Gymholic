@@ -4,6 +4,7 @@ app:
     integration-id: ${PAYMOB_INTEGRATION_ID:}
     iframe-id: ${PAYMOB_IFRAME_ID:}
     hmac-secret: ${PAYMOB_HMAC_SECRET:}
+    public-key: ${PAYMOB_PUBLIC_KEY:}
   encryption:
     secret: ${ENCRYPTION_SECRET:fallback_secret_must_change_in_prod}
   jwt:

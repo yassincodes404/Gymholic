@@ -30,6 +30,7 @@ public class PaymentProviderConfigService {
     public static final String KEY_INTEGRATION_ID = "PAYMOB_INTEGRATION_ID";
     public static final String KEY_IFRAME_ID = "PAYMOB_IFRAME_ID";
     public static final String KEY_HMAC_SECRET = "PAYMOB_HMAC_SECRET";
+    public static final String KEY_PUBLIC_KEY = "PAYMOB_PUBLIC_KEY";
     public static final String KEY_PAYMOB_ENABLED = "PAYMOB_ENABLED";
 
     private final SettingsService settingsService;
@@ -48,12 +49,19 @@ public class PaymentProviderConfigService {
     @Value("${app.paymob.hmac-secret:}")
     private String envHmacSecret;
 
+    @Value("${app.paymob.public-key:}")
+    private String envPublicKey;
+
     @Value("${app.payments.mock-enabled:false}")
     private boolean mockEnabled;
 
-    public record PaymobCredentials(String apiKey, String integrationId, String iframeId, String hmacSecret) {
+    public record PaymobCredentials(String apiKey, String integrationId, String iframeId,
+                                    String hmacSecret, String publicKey) {
+        /** New Paymob accounts (egy_* keys) use the Intention API: secret
+         *  key + integration id + public key + HMAC are the required set;
+         *  the iframe id only matters for legacy accept-api configs. */
         public boolean complete() {
-            return notBlank(apiKey) && notBlank(integrationId) && notBlank(iframeId) && notBlank(hmacSecret);
+            return notBlank(apiKey) && notBlank(integrationId) && notBlank(hmacSecret);
         }
         private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
     }
@@ -66,10 +74,11 @@ public class PaymentProviderConfigService {
                 pick(decrypt(all.get(KEY_API_KEY)), envApiKey),
                 pick(decrypt(all.get(KEY_INTEGRATION_ID)), envIntegrationId),
                 pick(decrypt(all.get(KEY_IFRAME_ID)), envIframeId),
-                pick(decrypt(all.get(KEY_HMAC_SECRET)), envHmacSecret));
+                pick(decrypt(all.get(KEY_HMAC_SECRET)), envHmacSecret),
+                pick(decrypt(all.get(KEY_PUBLIC_KEY)), envPublicKey));
         } catch (Exception e) {
             log.warn("Could not read Paymob settings, using env values: {}", e.getMessage());
-            return new PaymobCredentials(envApiKey, envIntegrationId, envIframeId, envHmacSecret);
+            return new PaymobCredentials(envApiKey, envIntegrationId, envIframeId, envHmacSecret, envPublicKey);
         }
     }
 
@@ -91,8 +100,7 @@ public class PaymentProviderConfigService {
     }
 
     private boolean envConfigured() {
-        return notBlank(envApiKey) && notBlank(envIntegrationId)
-            && notBlank(envIframeId) && notBlank(envHmacSecret);
+        return notBlank(envApiKey) && notBlank(envIntegrationId) && notBlank(envHmacSecret);
     }
 
     public boolean isPaymobConfigured() {
@@ -126,11 +134,12 @@ public class PaymentProviderConfigService {
      */
     @Transactional
     public void savePaymobConfig(String apiKey, String integrationId, String iframeId,
-                                 String hmacSecret, Boolean enabled) {
+                                 String hmacSecret, String publicKey, Boolean enabled) {
         if (notBlank(apiKey)) settingsService.updateSetting(KEY_API_KEY, encrypt(apiKey.trim()));
         if (notBlank(integrationId)) settingsService.updateSetting(KEY_INTEGRATION_ID, integrationId.trim());
         if (notBlank(iframeId)) settingsService.updateSetting(KEY_IFRAME_ID, iframeId.trim());
         if (notBlank(hmacSecret)) settingsService.updateSetting(KEY_HMAC_SECRET, encrypt(hmacSecret.trim()));
+        if (notBlank(publicKey)) settingsService.updateSetting(KEY_PUBLIC_KEY, publicKey.trim());
         if (enabled != null) settingsService.updateSetting(KEY_PAYMOB_ENABLED, enabled.toString());
     }
 

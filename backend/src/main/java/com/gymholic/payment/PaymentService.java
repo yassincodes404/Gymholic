@@ -60,7 +60,12 @@ public class PaymentService {
             amount,
             currency,
             "Booking #" + booking.getId(),
-            Map.of("bookingId", booking.getId().toString()));
+            Map.of(
+                "bookingId", booking.getId().toString(),
+                "clientEmail", booking.getClient().getEmail(),
+                "clientFirstName", nullSafe(booking.getClient().getFirstName(), "Gymholic"),
+                "clientLastName", nullSafe(booking.getClient().getLastName(), "Customer"),
+                "clientPhone", nullSafe(booking.getClient().getPhone(), "+201000000000")));
 
         Payment payment = Payment.builder()
             .booking(booking)
@@ -83,6 +88,10 @@ public class PaymentService {
         );
 
         return mapToDto(saved);
+    }
+
+    private static String nullSafe(String value, String fallback) {
+        return value != null && !value.isBlank() ? value : fallback;
     }
 
     @Transactional(readOnly = true)

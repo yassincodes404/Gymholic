@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         // Never let crawlers near auth or the admin area.
-        disallow: ["/admin", "/admin/", "/api/", "/app-api/", "/account", "/checkout", "/reschedule", "/order-success", "/reset-password"],
+        disallow: ["/admin", "/admin/", "/api/", "/app-api/", "/account", "/checkout", "/reschedule", "/order-success", "/payment-status", "/reset-password"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

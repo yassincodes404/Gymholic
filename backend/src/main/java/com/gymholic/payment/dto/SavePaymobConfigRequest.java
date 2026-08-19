@@ -18,5 +18,6 @@ public class SavePaymobConfigRequest {
     private String integrationId;
     private String iframeId;
     private String hmacSecret;
+    private String publicKey;
     private Boolean enabled;
 }

@@ -39,5 +39,6 @@ public class PaymentProvidersStatusDto {
         private String integrationId;
         private String iframeId;
         private String hmacSecretMasked;
+        private String publicKeyMasked;
     }
 }
