@@ -4,9 +4,12 @@ import com.gymholic.auth.dto.AuthResponse;
 import com.gymholic.auth.dto.GoogleAuthRequest;
 import com.gymholic.auth.dto.LoginRequest;
 import com.gymholic.auth.dto.RegisterRequest;
+import com.gymholic.common.enums.Role;
 import com.gymholic.common.response.ApiResponse;
+import com.gymholic.security.AdminGateCookie;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -35,14 +38,14 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+        return okFor(response, ApiResponse.success("Login successful", response));
     }
 
     @PostMapping("/google/signin")
     public ResponseEntity<ApiResponse<AuthResponse>> googleSignIn(
             @Valid @RequestBody GoogleAuthRequest request) {
         AuthResponse response = googleSignInService.authenticateWithGoogle(request.getIdToken());
-        return ResponseEntity.ok(ApiResponse.success("Google sign-in successful", response));
+        return okFor(response, ApiResponse.success("Google sign-in successful", response));
     }
 
     /**
@@ -64,7 +67,7 @@ public class AuthController {
             @RequestBody Map<String, String> request) {
         AuthResponse response = emailVerificationService.verifyLoginCode(
             request.get("email"), request.get("code"));
-        return ResponseEntity.ok(ApiResponse.success("Signed in", response));
+        return okFor(response, ApiResponse.success("Signed in", response));
     }
 
     /**
@@ -76,7 +79,7 @@ public class AuthController {
             @RequestBody Map<String, String> request) {
         AuthResponse response = emailVerificationService.verify(
             request.get("email"), request.get("code"));
-        return ResponseEntity.ok(ApiResponse.success("Email verified", response));
+        return okFor(response, ApiResponse.success("Email verified", response));
     }
 
     /** Re-sends the confirmation code (rate-limited to once a minute). */
@@ -111,5 +114,16 @@ public class AuthController {
         passwordResetService.resetPassword(
             request.get("token"), request.get("password"));
         return ResponseEntity.ok(ApiResponse.success("Password reset successful", null));
+    }
+
+    /** ADMIN sessions also open the frontend's admin gate cookie. */
+    private ResponseEntity<ApiResponse<AuthResponse>> okFor(
+            AuthResponse data, ApiResponse<AuthResponse> body) {
+        if (data != null && data.getRole() == Role.ADMIN) {
+            return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, AdminGateCookie.setCookieValue())
+                .body(body);
+        }
+        return ResponseEntity.ok(body);
     }
 }

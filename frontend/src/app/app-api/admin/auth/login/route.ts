@@ -37,10 +37,16 @@ export async function POST(req: NextRequest) {
       body,
     });
     const payload = await res.text();
-    return new NextResponse(payload, {
+    const next = new NextResponse(payload, {
       status: res.status,
       headers: { "Content-Type": "application/json" },
     });
+    // Forward the backend's admin-gate cookie (set on successful ADMIN
+    // logins) so the browser can actually enter /admin afterwards.
+    for (const cookie of res.headers.getSetCookie?.() ?? []) {
+      next.headers.append("Set-Cookie", cookie);
+    }
+    return next;
   } catch {
     return NextResponse.json(
       { success: false, message: "Could not reach the admin service." },
