@@ -1,0 +1,37 @@
+name: Ops — VPS one-off fix
+
+# TEMPORARY one-off: re-enable the Paymob provider toggle that was switched
+# off in the admin UI (settings.PAYMOB_ENABLED). Credentials come from the
+# env (the DB-stored enc: values predate ENCRYPTION_SECRET and are ignored).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ops-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Apply fix on VPS
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          timeout: 120s
+          script: |
+            set -e
+            cd ~/gymholic
+            echo "before:"
+            docker exec gymholic-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT setting_key || '"'"'='"'"' || setting_value FROM settings WHERE setting_key='"'"'PAYMOB_ENABLED'"'"';"'
+            docker exec gymholic-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "UPDATE settings SET setting_value='"'"'true'"'"', updated_at=now() WHERE setting_key='"'"'PAYMOB_ENABLED'"'"';"'
+            echo "after:"
+            docker exec gymholic-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT setting_key || '"'"'='"'"' || setting_value FROM settings WHERE setting_key='"'"'PAYMOB_ENABLED'"'"';"'
+            echo "active-provider now:"
+            docker exec gymholic-backend curl -s http://127.0.0.1:8080/api/payments/active-provider
+            echo
