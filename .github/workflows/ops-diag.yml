@@ -1,0 +1,38 @@
+name: Ops — VPS diagnostics
+
+# Prints masked integration diagnostics from the VPS: env value prefixes
+# (first 6 chars + length only — enough to tell key type, never the secret)
+# and the settings-table rows that gate the payment provider. Dispatch-only.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ops-diag
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Collect diagnostics from VPS
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          timeout: 120s
+          script: |
+            set -e
+            cd ~/gymholic
+            echo "== env PAYMOB/BREVO/GOOGLE (prefix + length only) =="
+            awk -F= '/^(PAYMOB|BREVO|GOOGLE_CLIENT|ADMIN_BOOTSTRAP)/ { v=$2; printf "%s = %s… (len %d)\n", $1, substr(v,1,6), length(v) }' .env
+            echo "== settings table (payment/email gates) =="
+            docker exec gymholic-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT key, CASE WHEN length(value) > 8 THEN left(value,4) || chr(8230) || (length(value))::text ELSE (chr(40) || length(value) || chr(41))::text END AS value_masked FROM settings WHERE key ILIKE '"'"'%PAYMOB%'"'"' OR key ILIKE '"'"'%BREVO%'"'"' OR key ILIKE '"'"'%GOOGLE%'"'"' ORDER BY key;"'
+            echo "== backend sees =="
+            docker exec gymholic-backend sh -c 'env | grep -E "^(PAYMOB|BREVO)" | awk -F= "{ v=$2; printf \"%s = %s… (len %d)\n\", $1, substr(v,1,6), length(v) }"'
+            echo "== active-provider endpoint =="
+            curl -s http://127.0.0.1:8080/api/payments/active-provider || docker exec gymholic-backend curl -s http://127.0.0.1:8080/api/payments/active-provider
+            echo
