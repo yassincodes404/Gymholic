@@ -107,9 +107,10 @@ public class EmailService {
         if (attachments != null && !attachments.isEmpty()) {
             List<Map<String, String>> parts = new ArrayList<>();
             for (EmailAttachment attachment : attachments) {
+                // Brevo's attachment shape: {"name": ..., "content": <base64>}
                 parts.add(Map.of(
                     "name", attachment.name(),
-                    "base64Content", attachment.base64()));
+                    "content", attachment.base64()));
             }
             body.put("attachment", parts);
         }

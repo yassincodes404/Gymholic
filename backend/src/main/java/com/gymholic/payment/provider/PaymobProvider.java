@@ -53,6 +53,10 @@ public class PaymobProvider implements PaymentProvider {
     @Value("${app.payments.paymob-redirect-path:/payment-status}")
     private String redirectPath;
 
+    /** Optional currency override for Paymob accounts that cannot collect USD. */
+    @Value("${app.paymob.currency:}")
+    private String paymobCurrency;
+
     @Override
     public String getProviderName() {
         return "paymob";
@@ -89,9 +93,14 @@ public class PaymobProvider implements PaymentProvider {
         try {
             long amountCents = amount.movePointRight(2).longValueExact();
 
+            // Accounts without USD collection (e.g. Egyptian Paymob) can force
+            // their local currency here; amounts stay in display units.
+            String effectiveCurrency = (paymobCurrency != null && !paymobCurrency.isBlank())
+                ? paymobCurrency.trim() : currency;
+
             Map<String, Object> body = new HashMap<>();
             body.put("amount", amountCents);
-            body.put("currency", currency);
+            body.put("currency", effectiveCurrency);
             body.put("payment_methods", List.of(Long.parseLong(credentials.integrationId().trim())));
             body.put("special_reference", "gymholic-" + System.currentTimeMillis());
             body.put("notification_url", frontendOrigin() + notificationPath);

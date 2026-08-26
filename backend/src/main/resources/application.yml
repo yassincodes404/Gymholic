@@ -5,6 +5,9 @@ app:
     iframe-id: ${PAYMOB_IFRAME_ID:}
     hmac-secret: ${PAYMOB_HMAC_SECRET:}
     public-key: ${PAYMOB_PUBLIC_KEY:}
+    # Optional override of the currency sent to Paymob (e.g. EGP for accounts
+    # without USD collection). Empty = use the order currency (USD).
+    currency: ${PAYMOB_CURRENCY:}
   encryption:
     secret: ${ENCRYPTION_SECRET:fallback_secret_must_change_in_prod}
   jwt:

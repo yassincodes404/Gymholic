@@ -77,6 +77,12 @@ export default function BookPage() {
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState<string | null>(null);
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  // Live backend availability (signed-in flow): the expert's real open slots
+  // for the selected date replace the template's fixed time list.
+  const [backendMode, setBackendMode] = useState<boolean | null>(null);
+  const [backendSlots, setBackendSlots] = useState<BackendAvailableSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
   const [details, setDetails] = useState<BookingDetails>(emptyBookingDetails);
   const [bookingRef, setBookingRef] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -116,6 +122,58 @@ export default function BookPage() {
 
   const stepOrder: Step[] = ["service", "datetime", "details", "payment", "confirmation"];
   const currentIndex = stepOrder.indexOf(step);
+
+  // The real slot list requires an authenticated session; guests keep the
+  // template KV flow.
+  useEffect(() => {
+    setBackendMode(!!getStoredAuthToken());
+  }, []);
+
+  // Load the backend's real open slots whenever a date is picked (and again
+  // whenever the datetime step is re-entered, e.g. after a failed payment).
+  useEffect(() => {
+    if (!date || backendMode !== true || step !== "datetime") return;
+    const token = getStoredAuthToken();
+    if (!token) return;
+    let cancelled = false;
+    setSlotsLoading(true);
+    setSlotsError(null);
+    const query = new URLSearchParams({
+      date: dateKey(date),
+      clientTimezone: getClientTimezone(),
+    });
+    fetch(`${buildBackendApiUrl(`/availability/trainer/${DEFAULT_TRAINER_ID}/slots`)}?${query.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (availabilityResponse) => {
+        const availabilityData = await availabilityResponse.json().catch(() => null);
+        if (!availabilityResponse.ok) {
+          throw new Error(
+            extractErrorMessage(availabilityData, "Could not load live availability from the backend.")
+          );
+        }
+        return Array.isArray((availabilityData as { data?: BackendAvailableSlot[] } | null)?.data)
+          ? (availabilityData as { data: BackendAvailableSlot[] }).data
+          : [];
+      })
+      .then((slots) => {
+        if (!cancelled) setBackendSlots(slots);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setBackendSlots([]);
+          setSlotsError(e instanceof Error ? e.message : "Could not load live availability.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSlotsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, backendMode, step]);
+
+  const backendSlotLabels = [...new Set(backendSlots.map((slot) => toTemplateTimeLabel(slot.displayTime)))];
 
   async function tryCreateBackendBooking(selectedService: ConsultationService, selectedDate: Date, selectedTime: string) {
     const token = getStoredAuthToken();
@@ -347,11 +405,26 @@ export default function BookPage() {
 
           {step === "datetime" && service && (
             <div className="grid md:grid-cols-2 gap-12">
-              <BookingCalendar selectedDate={date} onSelectDate={(d) => { setDate(d); setTime(null); }} onAvailabilityForDate={setBookedTimes} />
+              <BookingCalendar
+                selectedDate={date}
+                onSelectDate={(d) => {
+                  setDate(d);
+                  setTime(null);
+                }}
+                onAvailabilityForDate={setBookedTimes}
+                authDriven={backendMode === true}
+              />
               <div>
                 {date ? (
                   <>
-                    <TimeSlotPicker bookedTimes={bookedTimes} selectedTime={time} onSelect={setTime} />
+                    <TimeSlotPicker
+                      times={backendMode === true ? backendSlotLabels : undefined}
+                      disabledTimes={backendMode === true ? [] : bookedTimes}
+                      loading={backendMode === true && slotsLoading}
+                      error={backendMode === true ? slotsError : null}
+                      selectedTime={time}
+                      onSelect={setTime}
+                    />
                     {time && (
                       <button type="button" onClick={() => setStep("details")} className="btn-pill mt-8">
                         Continue

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { daysInMonth, dateKey, getDayStatus, type DayStatus } from "@/lib/bookingSlots";
+import { daysInMonth, dateKey, getDayStatus, isPastDay, type DayStatus } from "@/lib/bookingSlots";
 import { getFrontendApiPath } from "@/lib/api";
 
 type Availability = Record<string, string[]>;
@@ -17,11 +17,16 @@ export function BookingCalendar({
   selectedDate,
   onSelectDate,
   onAvailabilityForDate,
+  authDriven = false,
 }: {
   selectedDate: Date | null;
   onSelectDate: (date: Date) => void;
   /** Reports the booked times for whatever date gets selected, so the parent can pass them to TimeSlotPicker. */
   onAvailabilityForDate: (bookedTimes: string[]) => void;
+  /** Backend mode: the expert's real availability (per-date slot fetch) is the
+   *  source of truth, so days are open unless in the past — the template KV
+   *  store and the hardcoded Friday-closed rule only apply to guests. */
+  authDriven?: boolean;
 }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -95,7 +100,13 @@ export function BookingCalendar({
           ))}
           {days.map((day) => {
             const isSelected = !!selectedDate && dateKey(selectedDate) === dateKey(day);
-            const status = getDayStatus(day, (availability ?? {})[dateKey(day)] || [], isSelected);
+            const status: DayStatus = authDriven
+              ? isSelected
+                ? "selected"
+                : isPastDay(day)
+                  ? "unavailable"
+                  : "available"
+              : getDayStatus(day, (availability ?? {})[dateKey(day)] || [], isSelected);
             const style = STATUS_STYLE[status];
             return (
               <button
