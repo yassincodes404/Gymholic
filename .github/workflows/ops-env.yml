@@ -1,0 +1,99 @@
+name: Ops — VPS env sync
+
+# Fills missing/empty keys in ~/gymholic/.env on the VPS from encrypted
+# repository secrets, then recreates the backend so it picks them up.
+# Existing non-empty values are NEVER overwritten (protects JWT_SECRET,
+# DB passwords, ENCRYPTION_SECRET tied to stored data, live keys, …).
+# Logs print key names only — values never appear in workflow output.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ops-env
+  cancel-in-progress: false
+
+jobs:
+  sync-env:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Deploy env updates to Hostinger via SSH
+        uses: appleboy/ssh-action@v1.2.4
+        env:
+          PAYMOB_API_KEY: ${{ secrets.VPS_PAYMOB_API_KEY }}
+          PAYMOB_PUBLIC_KEY: ${{ secrets.VPS_PAYMOB_PUBLIC_KEY }}
+          PAYMOB_INTEGRATION_ID: ${{ secrets.VPS_PAYMOB_INTEGRATION_ID }}
+          PAYMOB_HMAC_SECRET: ${{ secrets.VPS_PAYMOB_HMAC_SECRET }}
+          BREVO_API_KEY: ${{ secrets.VPS_BREVO_API_KEY }}
+          BREVO_SENDER_EMAIL: ${{ secrets.VPS_BREVO_SENDER_EMAIL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.VPS_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.VPS_GOOGLE_CLIENT_SECRET }}
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          envs: PAYMOB_API_KEY,PAYMOB_PUBLIC_KEY,PAYMOB_INTEGRATION_ID,PAYMOB_HMAC_SECRET,BREVO_API_KEY,BREVO_SENDER_EMAIL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET
+          script: |
+            set -e
+            cd ~/gymholic
+            [ -s .env ] || { echo "Missing ~/gymholic/.env"; exit 1; }
+
+            # set_kv KEY VALUE — update existing non-empty-preserving rules:
+            #   - if KEY exists with a non-empty value -> leave untouched
+            #   - if KEY exists empty or missing -> set to VALUE
+            set_kv() {
+              local key="$1" value="$2"
+              if grep -Eq "^${key}=..+" .env; then
+                echo "keep  ${key} (already set)"
+              elif grep -Eq "^${key}=" .env; then
+                sed -i "s|^${key}=.*|${key}=${value}|" .env
+                echo "set   ${key} (was empty)"
+              else
+                printf '%s=%s\n' "${key}" "${value}" >> .env
+                echo "add   ${key}"
+              fi
+            }
+
+            # Non-secret values:
+            set_kv PAYMOB_CURRENCY "EGP"
+            set_kv GOOGLE_REDIRECT_URI "https://gymholic.ae/api/integrations/google/callback"
+            set_kv ADMIN_BOOTSTRAP_EMAILS "yassint.codes@gmail.com"
+            set_kv BREVO_SENDER_NAME "Gymholic"
+
+            # Secrets from repository secrets:
+            set_kv PAYMOB_API_KEY "$PAYMOB_API_KEY"
+            set_kv PAYMOB_PUBLIC_KEY "$PAYMOB_PUBLIC_KEY"
+            set_kv PAYMOB_INTEGRATION_ID "$PAYMOB_INTEGRATION_ID"
+            set_kv PAYMOB_HMAC_SECRET "$PAYMOB_HMAC_SECRET"
+            set_kv BREVO_API_KEY "$BREVO_API_KEY"
+            set_kv BREVO_SENDER_EMAIL "$BREVO_SENDER_EMAIL"
+            set_kv GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"
+            set_kv GOOGLE_CLIENT_SECRET "$GOOGLE_CLIENT_SECRET"
+
+            # ENCRYPTION_SECRET must be stable (encrypts DB-stored integration
+            # keys) — generate once, never change it afterwards.
+            if ! grep -Eq "^ENCRYPTION_SECRET=..+" .env; then
+              GEN=$(openssl rand -base64 48 | tr -d '\n')
+              set_kv ENCRYPTION_SECRET "$GEN"
+            else
+              echo "keep  ENCRYPTION_SECRET (already set)"
+            fi
+
+            # Recreate .env.runtime with the currently deployed image tag.
+            TAG=$(grep -oE '^IMAGE_TAG=.+' .env.runtime 2>/dev/null | cut -d= -f2 || true)
+            cp .env .env.runtime
+            [ -n "$TAG" ] && printf 'IMAGE_TAG=%s\n' "$TAG" >> .env.runtime
+
+            COMPOSE_FILES="-f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml"
+            docker compose $COMPOSE_FILES --env-file .env.runtime up -d --force-recreate backend
+
+            for i in $(seq 1 48); do
+              status="$(docker inspect --format='{{.State.Health.Status}}' gymholic-backend 2>/dev/null || true)"
+              [ "$status" = "healthy" ] && { echo "backend healthy"; exit 0; }
+              sleep 5
+            done
+            echo "Backend did not become healthy (status: ${status:-unknown})"
+            docker logs --tail=80 gymholic-backend || true
+            exit 1
