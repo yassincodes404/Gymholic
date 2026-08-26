@@ -37,7 +37,11 @@ export default function proxy(req: NextRequest) {
     const res = NextResponse.redirect(url);
     res.cookies.set(GATE_COOKIE, "1", {
       httpOnly: true,
-      sameSite: "strict",
+      // lax (not strict): the cookie must survive cross-site top-level
+      // redirects back into /admin — e.g. the Google OAuth callback
+      // (accounts.google.com -> gymholic.ae/admin/integrations?google=…).
+      // Strict would withhold it there and the gate would 404 the landing.
+      sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 90, // 90 days
       path: "/",
