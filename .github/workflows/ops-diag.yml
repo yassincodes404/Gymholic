@@ -30,7 +30,7 @@ jobs:
             echo "== env PAYMOB/BREVO/GOOGLE (prefix + length only) =="
             awk -F= '/^(PAYMOB|BREVO|GOOGLE_CLIENT|ADMIN_BOOTSTRAP)/ { v=$2; printf "%s = %s… (len %d)\n", $1, substr(v,1,6), length(v) }' .env
             echo "== settings table (payment/email gates) =="
-            docker exec gymholic-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT key, CASE WHEN length(value) > 8 THEN left(value,4) || chr(8230) || (length(value))::text ELSE (chr(40) || length(value) || chr(41))::text END AS value_masked FROM settings WHERE key ILIKE '"'"'%PAYMOB%'"'"' OR key ILIKE '"'"'%BREVO%'"'"' OR key ILIKE '"'"'%GOOGLE%'"'"' ORDER BY key;"'
+            docker exec gymholic-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT setting_key, CASE WHEN length(setting_value) > 8 THEN left(setting_value,4) || chr(8230) || (length(setting_value))::text ELSE (chr(40) || length(setting_value) || chr(41))::text END AS value_masked FROM settings WHERE setting_key ILIKE '"'"'%PAYMOB%'"'"' OR setting_key ILIKE '"'"'%BREVO%'"'"' OR setting_key ILIKE '"'"'%GOOGLE%'"'"' ORDER BY setting_key;"'
             echo "== backend sees =="
             docker exec gymholic-backend sh -c 'env | grep -E "^(PAYMOB|BREVO)" | awk -F= "{ v=$2; printf \"%s = %s… (len %d)\n\", $1, substr(v,1,6), length(v) }"'
             echo "== active-provider endpoint =="
