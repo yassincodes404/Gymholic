@@ -1,0 +1,68 @@
+name: Ops — VPS google secret force-fix
+
+# Force-writes the known-good Google client secret (transported base64 in
+# VPS_GOOGLE_SECRET_B64 to survive every transit layer) and corrects
+# FRONTEND_URL to the production domain. Verifies via truncated SHA-256 and
+# a live token-endpoint probe (400 = creds accepted), then recreates the
+# backend. Dispatch-only.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ops-gfix2
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Apply fixes on VPS
+        uses: appleboy/ssh-action@v1.2.4
+        env:
+          GSECRET_B64: ${{ secrets.VPS_GOOGLE_SECRET_B64 }}
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          timeout: 120s
+          envs: GSECRET_B64
+          script: |
+            set -e
+            cd ~/gymholic
+
+            CS=$(printf %s "$GSECRET_B64" | base64 -d)
+            echo "decoded_len=${#CS}"
+
+            grep -q '^GOOGLE_CLIENT_SECRET=' .env \
+              && sed -i "s|^GOOGLE_CLIENT_SECRET=.*|GOOGLE_CLIENT_SECRET=${CS}|" .env \
+              || printf 'GOOGLE_CLIENT_SECRET=%s\n' "$CS" >> .env
+
+            grep -q '^FRONTEND_URL=' .env \
+              && sed -i 's|^FRONTEND_URL=.*|FRONTEND_URL=https://gymholic.ae|' .env \
+              || printf 'FRONTEND_URL=https://gymholic.ae\n' >> .env
+
+            echo "after: FRONTEND_URL=$(grep '^FRONTEND_URL=' .env | cut -d= -f2-)"
+            echo "after: sha256(secret)=$(printf %s "$CS" | sha256sum | cut -c1-12)"
+
+            TAG=$(grep -oE '^IMAGE_TAG=.+' .env.runtime 2>/dev/null | cut -d= -f2 || true)
+            cp .env .env.runtime
+            [ -n "$TAG" ] && printf 'IMAGE_TAG=%s\n' "$TAG" >> .env.runtime
+            COMPOSE_FILES="-f docker-compose.prod.yml -f docker-compose.prod.hostinger.yml"
+            docker compose $COMPOSE_FILES --env-file .env.runtime up -d --force-recreate backend
+            for i in $(seq 1 48); do
+              status="$(docker inspect --format='{{.State.Health.Status}}' gymholic-backend 2>/dev/null || true)"
+              [ "$status" = "healthy" ] && { echo "backend healthy"; break; }
+              sleep 5
+            done
+
+            CID=$(grep '^GOOGLE_CLIENT_ID=' .env | cut -d= -f2- | tr -d '\r')
+            RURI=$(grep '^GOOGLE_REDIRECT_URI=' .env | cut -d= -f2- | tr -d '\r')
+            echo "== token endpoint probe (expect 400 invalid_grant = creds valid) =="
+            docker exec gymholic-backend curl -s -o /tmp/t.json -w 'HTTP %{http_code}\n' \
+              -X POST https://oauth2.googleapis.com/token \
+              -d grant_type=authorization_code -d code=fakecode123 \
+              -d client_id="$CID" -d client_secret="$CS" -d redirect_uri="$RURI"
+            cat /tmp/t.json
