@@ -1,0 +1,40 @@
+name: Ops — VPS google cred check
+
+# Compares the VPS's Google OAuth client values against known-good ones via
+# truncated SHA-256 (non-reversible) and probes Google's token endpoint from
+# the VPS itself (fake code: 400 = credentials valid, 401 = invalid client).
+# Also prints FRONTEND_URL with digits masked (GitHub masks the raw IP).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ops-credcheck
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check Google credentials on VPS
+        uses: appleboy/ssh-action@v1.2.4
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          timeout: 120s
+          script: |
+            set -e
+            cd ~/gymholic
+            CID=$(grep '^GOOGLE_CLIENT_ID=' .env | cut -d= -f2- | tr -d '\r')
+            CS=$(grep '^GOOGLE_CLIENT_SECRET=' .env | cut -d= -f2- | tr -d '\r')
+            RURI=$(grep '^GOOGLE_REDIRECT_URI=' .env | cut -d= -f2- | tr -d '\r')
+            echo "sha256(client_id)=$(printf %s "$CID" | sha256sum | cut -c1-12)"
+            echo "sha256(client_secret)=$(printf %s "$CS" | sha256sum | cut -c1-12)"
+            echo "client_id_len=${#CID} secret_len=${#CS}"
+            echo "FRONTEND_URL=$(grep '^FRONTEND_URL=' .env | cut -d= -f2- | sed 's/[0-9]/#/g')"
+            echo "GOOGLE_REDIRECT_URI=$RURI"
+            echo "== token endpoint probe from VPS (fake code) =="
+            docker exec gymholic-backend sh -c "apk curl wget 2>/dev/null; curl -s -o /tmp/t.json -w 'HTTP %{http_code}\n' -X POST https://oauth2.googleapis.com/token -d grant_type=authorization_code -d code=fakecode123 -d client_id='$CID' -d client_secret='$CS' -d redirect_uri='$RURI'; cat /tmp/t.json" || true
