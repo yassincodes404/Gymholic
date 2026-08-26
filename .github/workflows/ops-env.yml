@@ -34,6 +34,9 @@ jobs:
           username: ${{ secrets.HOSTINGER_USERNAME }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
+          # The runner→VPS handshake occasionally stalls past the 30s
+          # default (same as deploy.yml's scp step).
+          timeout: 120s
           envs: PAYMOB_API_KEY,PAYMOB_PUBLIC_KEY,PAYMOB_INTEGRATION_ID,PAYMOB_HMAC_SECRET,BREVO_API_KEY,BREVO_SENDER_EMAIL,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET
           script: |
             set -e
