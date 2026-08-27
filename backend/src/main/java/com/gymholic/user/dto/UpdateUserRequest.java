@@ -21,4 +21,7 @@ public class UpdateUserRequest {
     private String phone;
     private String profileImageUrl;
     private String bio;
+
+    /** IANA timezone ID (e.g. "Africa/Casablanca") — interpreted for availability windows. */
+    private String timezone;
 }

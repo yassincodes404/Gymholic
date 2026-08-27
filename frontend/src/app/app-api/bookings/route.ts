@@ -31,7 +31,12 @@ export async function POST(request: Request) {
   const key = slotKey(body.date, body.time);
   const bookingRef = `GH-${Date.now().toString(36).toUpperCase()}`;
 
-  const claimed = await kv.setIfNotExists(key, bookingRef);
+  // Slot claims expire at the end of the booked date so abandoned ones
+  // self-clean instead of blocking the slot forever.
+  const endOfBookedDate = Date.parse(`${body.date}T23:59:59Z`) + 1000;
+  const ttlSeconds = Math.ceil((endOfBookedDate - Date.now()) / 1000);
+
+  const claimed = await kv.setIfNotExists(key, bookingRef, ttlSeconds);
   if (!claimed && (await kv.get(key)) !== null) {
     return NextResponse.json(
       { error: "That time was just booked by someone else. Please pick another slot." },

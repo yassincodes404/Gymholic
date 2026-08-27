@@ -133,7 +133,11 @@ export function BookingConfirmation({
           {status && (
             <div className="flex justify-between pt-2">
               <span>Status</span>
-              <span>{status}</span>
+              <span>
+                {status === "PENDING_PAYMENT_CONFIRMATION"
+                  ? "Payment received — confirming shortly by email"
+                  : status}
+              </span>
             </div>
           )}
         </div>

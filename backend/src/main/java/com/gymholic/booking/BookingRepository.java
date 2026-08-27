@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +35,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findConflictingBookings(@Param("trainerId") Long trainerId, 
                                           @Param("startTime") Instant startTime, 
                                           @Param("endTime") Instant endTime);
+
+    /** Pending holds that are stale: their slot already started or checkout was abandoned hours ago. */
+    @Query("SELECT b FROM Booking b WHERE b.status = 'PENDING' " +
+           "AND (b.startTime < :now OR b.createdAt < :cutoff)")
+    List<Booking> findStalePendingBookings(@Param("now") Instant now,
+                                           @Param("cutoff") LocalDateTime cutoff);
 
     @Query("SELECT b FROM Booking b WHERE b.trainer.id = :trainerId " +
            "AND b.status IN :statuses " +

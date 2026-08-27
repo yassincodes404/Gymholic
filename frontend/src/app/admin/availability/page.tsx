@@ -11,6 +11,31 @@ import { adminFetch, getAdminUserId, type AvailabilityRow } from "@/lib/adminApi
 
 const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
+const TIMEZONE_FALLBACK = [
+  "UTC",
+  "Africa/Casablanca",
+  "Africa/Cairo",
+  "Africa/Lagos",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Istanbul",
+  "Asia/Dubai",
+  "Asia/Riyadh",
+  "Asia/Karachi",
+  "America/New_York",
+  "America/Chicago",
+  "America/Los_Angeles",
+];
+
+function timezoneOptions(): string[] {
+  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] })
+    .supportedValuesOf?.("timeZone");
+  return supported?.length ? supported : TIMEZONE_FALLBACK;
+}
+
+const TIMEZONES = timezoneOptions();
+
 export default function AdminAvailabilityPage() {
   const [rows, setRows] = useState<AvailabilityRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +43,7 @@ export default function AdminAvailabilityPage() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ dayOfWeek: "MONDAY", startTime: "09:00", endTime: "17:00" });
   const [saving, setSaving] = useState(false);
+  const [expertTimezone, setExpertTimezone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const userId = getAdminUserId();
@@ -34,7 +60,24 @@ export default function AdminAvailabilityPage() {
 
   useEffect(() => {
     load();
+    adminFetch<{ timezone?: string | null }>("users/me")
+      .then((me) => setExpertTimezone(me?.timezone || "UTC"))
+      .catch(() => setExpertTimezone("UTC"));
   }, [load]);
+
+  async function saveTimezone(tz: string) {
+    setError(null);
+    setNotice(null);
+    const previous = expertTimezone;
+    setExpertTimezone(tz);
+    try {
+      await adminFetch("users/me", { method: "PUT", body: JSON.stringify({ timezone: tz }) });
+      setNotice(`Working hours are now interpreted in ${tz.replace("_", " ")}.`);
+    } catch (err) {
+      setExpertTimezone(previous);
+      setError(err instanceof Error ? err.message : "Could not save timezone.");
+    }
+  }
 
   async function addSlot(e: React.FormEvent) {
     e.preventDefault();
@@ -83,6 +126,26 @@ export default function AdminAvailabilityPage() {
 
       {error && <div className="mb-6 bg-red-950/50 border border-red-800 text-red-300 rounded-lg p-4">{error}</div>}
       {notice && <div className="mb-6 bg-emerald-950/50 border border-emerald-800 text-emerald-300 rounded-lg p-4">{notice}</div>}
+
+      <div className="bg-surface border border-paper/10 rounded-xl p-5 mb-6 max-w-xl">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-paper/60 mb-2">Working timezone</h2>
+        <p className="text-paper/60 text-sm mb-3">
+          The windows below are interpreted in this timezone; customers see them converted to their own.
+        </p>
+        <select
+          value={expertTimezone ?? ""}
+          onChange={(e) => saveTimezone(e.target.value)}
+          disabled={!expertTimezone}
+          className={inputCls + " w-full"}
+        >
+          {expertTimezone && !TIMEZONES.includes(expertTimezone) && (
+            <option value={expertTimezone}>{expertTimezone}</option>
+          )}
+          {TIMEZONES.map((tz) => (
+            <option key={tz} value={tz}>{tz.replace("_", " ")}</option>
+          ))}
+        </select>
+      </div>
 
       {loading ? (
         <p className="text-paper/60">Loading availability…</p>

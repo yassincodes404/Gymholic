@@ -22,6 +22,7 @@ public class UserDto {
     private Role role;
     private String profileImageUrl;
     private String bio;
+    private String timezone;
     private boolean active;
     private LocalDateTime createdAt;
 }

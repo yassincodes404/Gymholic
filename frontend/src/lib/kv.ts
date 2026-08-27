@@ -48,11 +48,15 @@ export const kv = {
     return true;
   },
 
-  /** Atomic "claim if not already taken" — the actual slot-locking mechanism. */
-  async setIfNotExists(key: string, value: unknown): Promise<boolean> {
+  /**
+   * Atomic "claim if not already taken" — the actual slot-locking mechanism.
+   * `ttlSeconds` self-cleans abandoned claims once the slot date has passed.
+   */
+  async setIfNotExists(key: string, value: unknown, ttlSeconds?: number): Promise<boolean> {
     const c = getClient();
     if (!c) return false;
-    const result = await c.set(key, value, { nx: true });
+    const ex = typeof ttlSeconds === "number" ? Math.max(60, Math.ceil(ttlSeconds)) : undefined;
+    const result = await c.set(key, value, ex !== undefined ? { nx: true, ex } : { nx: true });
     return result === "OK" || result === true;
   },
 

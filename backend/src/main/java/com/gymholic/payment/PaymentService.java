@@ -13,13 +13,16 @@ import com.gymholic.payment.entity.Payment;
 import com.gymholic.payment.provider.PaymentProvider;
 import com.gymholic.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
@@ -30,6 +33,7 @@ public class PaymentService {
     private final NotificationService notificationService;
     private final List<PaymentProvider> paymentProviders;
     private final com.gymholic.payment.provider.PaymentProviderConfigService providerConfigService;
+    private final com.gymholic.settings.SettingsService settingsService;
 
     @Transactional
     public PaymentDto createPayment(CreatePaymentRequest request) {
@@ -44,6 +48,21 @@ public class PaymentService {
         if ("paymob".equals(request.getProvider()) && !providerConfigService.isPaymobActive()) {
             throw new BadRequestException(
                 "Paymob is not enabled. Configure and enable it under Admin → Integrations.");
+        }
+
+        // One payment attempt per booking: a completed payment means the
+        // booking is paid; a still-pending one is reused instead of piling
+        // up duplicate rows on every checkout retry.
+        List<Payment> existingPayments = paymentRepository.findByBookingId(booking.getId());
+        if (existingPayments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.COMPLETED)) {
+            throw new BadRequestException("This booking is already paid.");
+        }
+        Optional<Payment> pendingSameProvider = existingPayments.stream()
+            .filter(p -> p.getStatus() == PaymentStatus.PENDING
+                      && provider.getProviderName().equals(p.getProviderName()))
+            .findFirst();
+        if (pendingSameProvider.isPresent()) {
+            return mapToDto(pendingSameProvider.get());
         }
 
         // The amount is resolved server-side from the admin-managed settings,
@@ -109,7 +128,15 @@ public class PaymentService {
             .toList();
     }
 
-    @Transactional
+    /**
+     * Deliberately NOT one big transaction: the payment status change is
+     * persisted and committed on its own (each repository save runs in its
+     * own transaction), so a booking that can no longer be confirmed
+     * (cancelled/rejected/no-show when a late webhook lands) can never roll
+     * the captured payment back to PENDING — that would make Paymob retry
+     * forever. The wrong-state outcome is contained, the admin is flagged
+     * to review/refund, and the webhook still ACKs.
+     */
     public void handlePaymobWebhook(String payload, String hmac) {
         PaymentProvider provider = paymentProviders.stream()
             .filter(p -> p.getProviderName().equals("paymob"))
@@ -117,7 +144,7 @@ public class PaymentService {
             .orElseThrow(() -> new BadRequestException("Paymob provider not found"));
 
         Map<String, Object> result = provider.verifyWebhook(payload, hmac);
-        
+
         String orderId = (String) result.get("orderId");
         boolean success = (Boolean) result.get("success");
         boolean pending = (Boolean) result.get("pending");
@@ -133,7 +160,7 @@ public class PaymentService {
         if (success && !pending) {
             payment.setStatus(PaymentStatus.COMPLETED);
             paymentRepository.save(payment);
-            
+
             notificationService.sendPaymentSuccessful(
                 payment.getBooking().getClient().getEmail(),
                 payment.getBooking().getClient().getFirstName(),
@@ -143,10 +170,34 @@ public class PaymentService {
             );
 
             // Confirm booking
-            bookingService.confirmBooking(payment.getBooking().getId());
+            try {
+                bookingService.confirmBooking(payment.getBooking().getId());
+            } catch (BadRequestException e) {
+                log.warn("Payment {} captured for booking #{} which is no longer pending ({}): {}",
+                    orderId, payment.getBooking().getId(), payment.getBooking().getStatus(), e.getMessage());
+                notificationService.sendAdminPaymentReviewNeeded(
+                    adminNotifyEmail(payment.getBooking().getTrainer().getEmail()),
+                    payment.getBooking().getClient().getFirstName() + " "
+                        + payment.getBooking().getClient().getLastName(),
+                    payment.getBooking().getClient().getEmail(),
+                    payment.getBooking().getId(),
+                    payment.getBooking().getStatus().name(),
+                    payment.getAmount().toPlainString(),
+                    payment.getCurrency(),
+                    orderId);
+            }
         } else if (!pending) {
             payment.setStatus(PaymentStatus.FAILED);
             paymentRepository.save(payment);
+        }
+    }
+
+    /** Where admin/expert notification emails go (ADMIN_NOTIFY_EMAIL overrides the trainer inbox). */
+    private String adminNotifyEmail(String trainerEmail) {
+        try {
+            return settingsService.getString("ADMIN_NOTIFY_EMAIL", trainerEmail);
+        } catch (Exception e) {
+            return trainerEmail;
         }
     }
 

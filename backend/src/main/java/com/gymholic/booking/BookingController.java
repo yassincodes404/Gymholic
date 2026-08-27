@@ -60,7 +60,9 @@ public class BookingController {
         return ResponseEntity.ok(ApiResponse.success(bookings));
     }
 
+    /** Payment confirmation goes through PaymentService internally; over HTTP this is admin-only. */
     @PutMapping("/{id}/confirm")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BookingDto>> confirmBooking(@PathVariable Long id) {
         BookingDto booking = bookingService.confirmBooking(id);
         return ResponseEntity.ok(ApiResponse.success("Booking confirmed", booking));

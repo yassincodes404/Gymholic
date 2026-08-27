@@ -25,6 +25,7 @@ public class ReminderScheduler {
     private final NotificationService notificationService;
     private final StringRedisTemplate redisTemplate;
     private final com.gymholic.settings.SettingsService settingsService;
+    private final com.gymholic.booking.BookingService bookingService;
 
     private static final String REMINDER_FLAG_PREFIX = "booking_reminder_sent:";
     private static final String SOON_FLAG_PREFIX = "booking_reminder_1h_sent:";
@@ -129,6 +130,21 @@ public class ReminderScheduler {
             } catch (Exception e) {
                 log.error("Failed to auto-complete booking #{}: {}", booking.getId(), e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Runs every 15 minutes — releases stale PENDING bookings (unpaid
+     * holds whose slot passed or whose checkout was abandoned 2+ hours
+     * ago) so the slots stop blocking listings and the same client can
+     * re-book. Naturally idempotent via the status guard inside.
+     */
+    @Scheduled(cron = "0 */15 * * * *")
+    public void expireStalePendingBookings() {
+        try {
+            bookingService.expireStalePendingBookings();
+        } catch (Exception e) {
+            log.error("Failed to expire stale pending bookings: {}", e.getMessage());
         }
     }
 

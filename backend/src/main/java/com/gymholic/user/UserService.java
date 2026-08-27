@@ -1,6 +1,8 @@
 package com.gymholic.user;
 
+import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
+import com.gymholic.common.util.TimezoneUtils;
 import com.gymholic.user.dto.UpdateUserRequest;
 import com.gymholic.user.dto.UserDto;
 import com.gymholic.user.entity.User;
@@ -55,6 +57,12 @@ public class UserService {
         if (request.getBio() != null) {
             user.setBio(request.getBio());
         }
+        if (request.getTimezone() != null) {
+            if (!TimezoneUtils.isValidTimezone(request.getTimezone())) {
+                throw new BadRequestException("Invalid timezone: " + request.getTimezone());
+            }
+            user.setTimezone(request.getTimezone());
+        }
 
         User saved = userRepository.save(user);
         return mapToDto(saved);
@@ -70,6 +78,7 @@ public class UserService {
             .role(user.getRole())
             .profileImageUrl(user.getProfileImageUrl())
             .bio(user.getBio())
+            .timezone(user.getTimezone())
             .active(user.isActive())
             .createdAt(user.getCreatedAt())
             .build();

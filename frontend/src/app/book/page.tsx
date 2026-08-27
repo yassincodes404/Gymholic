@@ -33,7 +33,8 @@ type BackendAvailableSlot = {
   displayTime: string;
 };
 
-const DEFAULT_TRAINER_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_TRAINER_ID ?? "1");
+// Used only if the backend can't tell us which expert owns the working hours.
+const FALLBACK_TRAINER_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_TRAINER_ID ?? "1");
 
 class BookingFlowError extends Error {
   allowFrontendFallback: boolean;
@@ -91,6 +92,12 @@ export default function BookPage() {
   const [paying, setPaying] = useState(false);
   const [activeProvider, setActiveProvider] = useState<"paymob" | "mock" | "none" | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  // Embedded Paymob checkout: instead of leaving the site, the Unified
+  // Checkout renders inside the payment card until Paymob redirects the
+  // frame back to /payment-status, which notifies this page via postMessage.
+  const [embeddedCheckoutUrl, setEmbeddedCheckoutUrl] = useState<string | null>(null);
+  const [embeddedBookingId, setEmbeddedBookingId] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   // Which gateway checkout should use ("paymob" when enabled in Admin →
   // Integrations, "mock" in dev). Public endpoint.
@@ -129,10 +136,38 @@ export default function BookPage() {
     setBackendMode(!!getStoredAuthToken());
   }, []);
 
+  // Which expert we book against is resolved server-side (owner of the
+  // current working hours), so the admin's schedule and this page can never
+  // drift apart. Falls back to the configured default id if resolution fails.
+  const [trainerId, setTrainerId] = useState<number | null>(null);
+  useEffect(() => {
+    if (backendMode !== true) return;
+    const token = getStoredAuthToken();
+    if (!token) return;
+    let cancelled = false;
+    fetch(buildBackendApiUrl("availability/booking-trainer"), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !payload?.success) throw new Error("trainer resolution failed");
+        return (payload.data as { trainerId?: number | string }).trainerId;
+      })
+      .then((id) => {
+        if (!cancelled) setTrainerId(Number(id) || FALLBACK_TRAINER_ID);
+      })
+      .catch(() => {
+        if (!cancelled) setTrainerId(FALLBACK_TRAINER_ID);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backendMode]);
+
   // Load the backend's real open slots whenever a date is picked (and again
   // whenever the datetime step is re-entered, e.g. after a failed payment).
   useEffect(() => {
-    if (!date || backendMode !== true || step !== "datetime") return;
+    if (!date || backendMode !== true || step !== "datetime" || !trainerId) return;
     const token = getStoredAuthToken();
     if (!token) return;
     let cancelled = false;
@@ -142,7 +177,7 @@ export default function BookPage() {
       date: dateKey(date),
       clientTimezone: getClientTimezone(),
     });
-    fetch(`${buildBackendApiUrl(`/availability/trainer/${DEFAULT_TRAINER_ID}/slots`)}?${query.toString()}`, {
+    fetch(`${buildBackendApiUrl(`/availability/trainer/${trainerId}/slots`)}?${query.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (availabilityResponse) => {
@@ -171,9 +206,73 @@ export default function BookPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, backendMode, step]);
+  }, [date, backendMode, step, trainerId]);
 
   const backendSlotLabels = [...new Set(backendSlots.map((slot) => toTemplateTimeLabel(slot.displayTime)))];
+
+  // Embedded Paymob checkout finisher: the /payment-status page reports the
+  // outcome from inside the iframe, then we poll the booking until the
+  // webhook confirms it (or timeout with a pending note — prod confirms in
+  // seconds; local dev needs the simulated webhook).
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; url?: string } | null;
+      if (!data || data.type !== "paymob-embedded-done" || !data.url) return;
+
+      const outcome = new URL(data.url, window.location.origin).searchParams;
+      const paid = outcome.get("success") === "true" || outcome.get("pending") === "true";
+      setEmbeddedCheckoutUrl(null);
+      setEmbeddedBookingId((bookingId) => {
+        if (paid && bookingId) {
+          void waitForBookingConfirmation(bookingId);
+        } else {
+          setBookingError("The payment didn't go through — no money was taken. You can try again.");
+          setTime(null);
+          setStep("datetime");
+        }
+        return null;
+      });
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  async function waitForBookingConfirmation(bookingId: number) {
+    const token = getStoredAuthToken();
+    setConfirming(true);
+    try {
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        try {
+          const res = await fetch(buildBackendApiUrl(`bookings/${bookingId}`), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const payload = await res.json().catch(() => null);
+          if (res.ok && payload?.data) {
+            const status = payload.data.status as string | null;
+            if (status === "CONFIRMED" || status === "COMPLETED") {
+              setConfirmedStatus(status);
+              setConfirmedMeetLink(payload.data.meetLink ?? null);
+              setBookingRef(`BK-${bookingId}`);
+              setStep("confirmation");
+              return;
+            }
+          }
+        } catch {
+          // transient network hiccup — keep polling
+        }
+      }
+      // Webhook hasn't landed within ~45s (expected in local dev where
+      // Paymob can't reach the backend). Show the confirmation with the
+      // pending note instead of blocking the user forever.
+      setConfirmedStatus("PENDING_PAYMENT_CONFIRMATION");
+      setBookingRef(`BK-${bookingId}`);
+      setStep("confirmation");
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   async function tryCreateBackendBooking(selectedService: ConsultationService, selectedDate: Date, selectedTime: string) {
     const token = getStoredAuthToken();
@@ -183,13 +282,14 @@ export default function BookPage() {
     }
 
     const clientTimezone = getClientTimezone();
+    const effectiveTrainerId = trainerId ?? FALLBACK_TRAINER_ID;
     const query = new URLSearchParams({
       date: dateKey(selectedDate),
       clientTimezone,
     });
 
     const availabilityResponse = await fetch(
-      `${buildBackendApiUrl(`/availability/trainer/${DEFAULT_TRAINER_ID}/slots`)}?${query.toString()}`,
+      `${buildBackendApiUrl(`/availability/trainer/${effectiveTrainerId}/slots`)}?${query.toString()}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -223,7 +323,7 @@ export default function BookPage() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        trainerId: DEFAULT_TRAINER_ID,
+        trainerId: effectiveTrainerId,
         startTime: matchingSlot.startTime,
         endTime: matchingSlot.endTime,
         clientTimezone,
@@ -288,8 +388,14 @@ export default function BookPage() {
         if (!checkoutUrl) {
           throw new BookingFlowError("Paymob checkout could not be started.", false);
         }
-        window.location.href = checkoutUrl;
-        return; // The Paymob webhook confirms the booking after payment.
+        // Embedded checkout: keep the user on this page and mount Paymob's
+        // hosted checkout in an iframe. Paymob's post-payment redirect
+        // targets our own /payment-status inside the frame, which notifies
+        // this page via postMessage (listener below). The webhook confirms
+        // the booking server-side either way.
+        setEmbeddedBookingId(bookingId);
+        setEmbeddedCheckoutUrl(checkoutUrl);
+        return;
       }
 
       const completeResponse = await fetch(
@@ -420,7 +526,7 @@ export default function BookPage() {
                     <TimeSlotPicker
                       times={backendMode === true ? backendSlotLabels : undefined}
                       disabledTimes={backendMode === true ? [] : bookedTimes}
-                      loading={backendMode === true && slotsLoading}
+                      loading={backendMode === true && (slotsLoading || trainerId === null)}
                       error={backendMode === true ? slotsError : null}
                       selectedTime={time}
                       onSelect={setTime}
@@ -461,12 +567,49 @@ export default function BookPage() {
           {step === "payment" && service && date && time && (
             <div className="grid md:grid-cols-2 gap-12">
               {getStoredAuthToken() ? (
-                activeProvider === "paymob" ? (
+                embeddedCheckoutUrl ? (
+                  <div className="rounded-2xl p-6" style={{ background: "var(--surface)" }}>
+                    <h2 className="font-semibold text-lg mb-1">Card payment</h2>
+                    <p className="text-sm opacity-60 mb-4">
+                      Secure card form hosted by Paymob — embedded right here,
+                      your card details never touch our servers.
+                    </p>
+                    <div
+                      className="rounded-xl overflow-hidden border"
+                      style={{ borderColor: "rgba(245,241,232,0.15)" }}
+                    >
+                      <iframe
+                        src={embeddedCheckoutUrl}
+                        title="Paymob secure card checkout"
+                        className="w-full"
+                        style={{ height: "560px", border: "none", background: "#fff" }}
+                        allow="clipboard-write"
+                      />
+                    </div>
+                    {confirming && (
+                      <p className="text-sm mt-4" style={{ color: "var(--orange)" }}>
+                        Payment received — confirming your booking…
+                      </p>
+                    )}
+                    <p className="text-xs opacity-50 mt-3">
+                      Prefer a full window?{" "}
+                      <a
+                        href={embeddedCheckoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:no-underline"
+                      >
+                        Open checkout in a new tab
+                      </a>
+                    </p>
+                  </div>
+                ) : activeProvider === "paymob" ? (
                   <div className="rounded-2xl p-8" style={{ background: "var(--surface)" }}>
                     <h2 className="font-semibold text-lg mb-2">Card payment</h2>
                     <p className="text-sm opacity-70 mb-6">
-                      You&apos;ll be redirected to Paymob&apos;s secure checkout to pay{" "}
-                      {service.price} {service.currency}. Your booking is confirmed
+                      The secure card form opens right here on this page — no
+                      redirect away from the site. You&apos;ll pay{" "}
+                      {service.price} {service.currency} and your booking is confirmed
                       automatically once the payment succeeds — the Google Meet
                       invitation and receipt are emailed to you right after.
                     </p>
@@ -477,7 +620,7 @@ export default function BookPage() {
                       disabled={paying || !termsAccepted}
                       className="btn-pill w-full justify-center disabled:opacity-50"
                     >
-                      {paying ? "Starting checkout…" : `Pay ${service.price} ${service.currency} with Card`}
+                      {paying ? "Opening secure card form…" : `Pay ${service.price} ${service.currency} with Card`}
                     </button>
                     {bookingError && (
                       <p className="text-sm mt-4" style={{ color: "var(--orange)" }} role="alert">

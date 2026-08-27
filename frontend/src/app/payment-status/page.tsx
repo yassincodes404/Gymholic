@@ -7,12 +7,24 @@
 
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 function PaymentStatus() {
   const params = useSearchParams();
+
+  // Embedded checkout: when Paymob's checkout iframe redirects here, tell
+  // the parent booking page the outcome so it can finish the flow inline
+  // instead of showing this full page inside the frame.
+  useEffect(() => {
+    if (typeof window === "undefined" || window.self === window.top) return;
+    window.parent.postMessage(
+      { type: "paymob-embedded-done", url: window.location.href },
+      window.location.origin
+    );
+  }, []);
+
   const success = params.get("success") === "true";
   const pending = params.get("pending") === "true";
   const amountCents = Number(params.get("amount_cents") ?? "0") / 100;

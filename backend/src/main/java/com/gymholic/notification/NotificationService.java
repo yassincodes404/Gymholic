@@ -227,6 +227,41 @@ public class NotificationService {
             Map.of("name", name != null ? name : "there"));
     }
 
+    /** Unpaid booking hold expired (slot started or checkout abandoned) — invite the client to rebook. */
+    public void sendBookingExpired(String toEmail, String clientName, String dateTime) {
+        emailService.sendEmail(
+            toEmail,
+            "Your booking was released — payment not completed — Gymholic",
+            "booking-expired",
+            Map.of(
+                "clientName", clientName,
+                "dateTime", dateTime
+            ));
+    }
+
+    /**
+     * A payment landed on a booking that can no longer be confirmed
+     * (cancelled/rejected/no-show) — the admin must review and refund.
+     */
+    public void sendAdminPaymentReviewNeeded(String adminEmail, String clientName, String clientEmail,
+                                             Long bookingId, String bookingStatus,
+                                             String amount, String currency, String orderId) {
+        emailService.sendEmail(
+            adminEmail,
+            "Action needed: payment received for booking #" + bookingId
+                + " (" + bookingStatus + ") — Gymholic",
+            "admin-payment-review",
+            Map.of(
+                "clientName", clientName,
+                "clientEmail", clientEmail,
+                "bookingId", String.valueOf(bookingId),
+                "bookingStatus", bookingStatus,
+                "amount", amount,
+                "currency", currency,
+                "orderId", orderId != null ? orderId : ""
+            ));
+    }
+
     public void sendAdminNewBooking(String adminEmail, String clientName, String clientEmail,
                                      String dateTime, String amount, String currency) {
         emailService.sendEmail(

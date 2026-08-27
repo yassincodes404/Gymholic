@@ -11,9 +11,11 @@ import com.gymholic.booking.dto.RescheduleBookingRequest;
 import com.gymholic.booking.dto.RescheduleLinkSummaryDto;
 import com.gymholic.booking.entity.Booking;
 import com.gymholic.common.enums.BookingStatus;
+import com.gymholic.common.enums.Role;
 import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
 import com.gymholic.common.util.DateTimeUtils;
+import com.gymholic.security.SecurityUtils;
 import com.gymholic.user.UserRepository;
 import com.gymholic.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.gymholic.calendar.CalendarService;
@@ -147,8 +150,13 @@ public class BookingService {
                 bufferEnd
         );
         
+        // The client's own unpaid PENDING holds don't block a fresh attempt —
+        // only real (paid/confirmed or other people's pending) bookings do.
         boolean hasConflict = conflicts.stream()
-            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED && b.getStatus() != BookingStatus.REJECTED);
+            .anyMatch(b -> b.getStatus() != BookingStatus.CANCELLED
+                        && b.getStatus() != BookingStatus.REJECTED
+                        && !(b.getClient().getId().equals(client.getId())
+                                && b.getStatus() == BookingStatus.PENDING));
 
         if (hasConflict) {
             throw new BadRequestException("The requested time slot is not available due to conflicts");
@@ -215,16 +223,19 @@ public class BookingService {
     public BookingDto getBookingById(Long id) {
         Booking booking = bookingRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+        assertCanAccess(booking, requireCurrentUser());
         return mapToDto(booking);
     }
 
     @Transactional(readOnly = true)
     public Page<BookingDto> getBookingsByClient(Long clientId, Pageable pageable) {
+        assertSelfOrAdmin(clientId, requireCurrentUser());
         return bookingRepository.findByClientId(clientId, pageable).map(this::mapToDto);
     }
 
     @Transactional(readOnly = true)
     public Page<BookingDto> getBookingsByTrainer(Long trainerId, Pageable pageable) {
+        assertSelfOrAdmin(trainerId, requireCurrentUser());
         return bookingRepository.findByTrainerId(trainerId, pageable).map(this::mapToDto);
     }
 
@@ -335,6 +346,7 @@ public class BookingService {
     public BookingDto cancelBooking(Long id, String reason) {
         Booking booking = bookingRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+        assertCanAccess(booking, requireCurrentUser());
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             // Idempotent
@@ -375,9 +387,14 @@ public class BookingService {
     public BookingDto rescheduleBooking(Long id, RescheduleBookingRequest request) {
         Booking booking = bookingRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+        assertTrainerOrAdmin(booking, requireCurrentUser());
 
         if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING) {
             throw new BadRequestException("Only pending or confirmed bookings can be rescheduled");
+        }
+
+        if (request.getNewStartTime().isBefore(Instant.now())) {
+            throw new BadRequestException("Please choose a future time slot.");
         }
 
         validateNewTime(booking.getTrainer(), booking.getId(),
@@ -587,6 +604,65 @@ public class BookingService {
 
         log.info("Booking {} rescheduled by client via one-time link", booking.getId());
         return mapToDto(saved);
+    }
+
+    /**
+     * Auto-cancels stale PENDING bookings (abandoned checkouts): ones whose
+     * slot already started or whose payment was never completed within two
+     * hours. Frees the slot for everyone and lets the same client re-book.
+     * PENDING bookings never have a calendar event, so nothing external
+     * needs cleaning up.
+     */
+    @Transactional
+    public void expireStalePendingBookings() {
+        List<Booking> stale = bookingRepository.findStalePendingBookings(
+            Instant.now(), LocalDateTime.now().minus(Duration.ofHours(2)));
+        for (Booking booking : stale) {
+            booking.setStatus(BookingStatus.CANCELLED);
+            booking.setCancellationReason("Automatically cancelled — payment not completed");
+            bookingRepository.save(booking);
+
+            notificationService.sendBookingExpired(
+                booking.getClient().getEmail(),
+                booking.getClient().getFirstName(),
+                clientDisplayTime(booking));
+            log.info("Expired stale pending booking #{} (startTime={}, createdAt={})",
+                booking.getId(), booking.getStartTime(), booking.getCreatedAt());
+        }
+    }
+
+    /** The signed-in user (HTTP requests only — scheduler/webhook threads carry no security context). */
+    private User requireCurrentUser() {
+        String email = SecurityUtils.getCurrentUserEmail();
+        if (email == null) {
+            throw new AccessDeniedException("Access denied");
+        }
+        return userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    }
+
+    /** Booking details are visible to its client, its trainer, or an admin. */
+    private void assertCanAccess(Booking booking, User current) {
+        if (current.getRole() != Role.ADMIN
+                && !current.getId().equals(booking.getClient().getId())
+                && !current.getId().equals(booking.getTrainer().getId())) {
+            throw new AccessDeniedException("Access denied");
+        }
+    }
+
+    /** A user's own scoped listings are visible to that user or an admin. */
+    private void assertSelfOrAdmin(Long targetUserId, User current) {
+        if (current.getRole() != Role.ADMIN && !current.getId().equals(targetUserId)) {
+            throw new AccessDeniedException("Access denied");
+        }
+    }
+
+    /** Rescheduling an existing booking is the trainer's (or an admin's) call. */
+    private void assertTrainerOrAdmin(Booking booking, User current) {
+        if (current.getRole() != Role.ADMIN
+                && !current.getId().equals(booking.getTrainer().getId())) {
+            throw new AccessDeniedException("Access denied");
+        }
     }
 
     private Booking requireValidRescheduleToken(String token) {

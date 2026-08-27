@@ -2,6 +2,7 @@ package com.gymholic.availability;
 
 import com.gymholic.availability.dto.AvailabilityDto;
 import com.gymholic.availability.dto.AvailableSlotDto;
+import com.gymholic.availability.dto.BookingTrainerDto;
 import com.gymholic.availability.dto.CreateAvailabilityRequest;
 import com.gymholic.common.response.ApiResponse;
 import com.gymholic.security.SecurityUtils;
@@ -37,6 +38,16 @@ public class AvailabilityController {
             @PathVariable Long trainerId) {
         List<AvailabilityDto> slots = availabilityService.getTrainerAvailability(trainerId);
         return ResponseEntity.ok(ApiResponse.success(slots));
+    }
+
+    /**
+     * Resolves which expert the public booking flow should book against
+     * (the owner of the current working hours), so clients never depend on a
+     * hard-coded trainer id.
+     */
+    @GetMapping("/booking-trainer")
+    public ResponseEntity<ApiResponse<BookingTrainerDto>> getBookingTrainer() {
+        return ResponseEntity.ok(ApiResponse.success(availabilityService.resolveBookingTrainer()));
     }
 
     /**

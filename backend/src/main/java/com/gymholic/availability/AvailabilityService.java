@@ -2,8 +2,10 @@ package com.gymholic.availability;
 
 import com.gymholic.availability.dto.AvailabilityDto;
 import com.gymholic.availability.dto.AvailableSlotDto;
+import com.gymholic.availability.dto.BookingTrainerDto;
 import com.gymholic.availability.dto.CreateAvailabilityRequest;
 import com.gymholic.availability.entity.Availability;
+import com.gymholic.common.enums.Role;
 import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
 import com.gymholic.common.util.TimezoneUtils;
@@ -11,13 +13,14 @@ import com.gymholic.user.UserRepository;
 import com.gymholic.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.gymholic.booking.BookingRepository;
 import com.gymholic.booking.entity.Booking;
-import com.gymholic.common.enums.BookingStatus;
 import java.time.*;
+import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +40,20 @@ public class AvailabilityService {
         User trainer = userRepository.findByEmail(trainerEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User", "email", trainerEmail));
 
-        if (request.getEndTime().isBefore(request.getStartTime())) {
+        if (trainer.getRole() != Role.ADMIN && trainer.getRole() != Role.TRAINER) {
+            throw new AccessDeniedException("Only admins and trainers can manage availability");
+        }
+
+        if (!request.getEndTime().isAfter(request.getStartTime())) {
             throw new BadRequestException("End time must be after start time");
+        }
+        if (request.isRecurring() && request.getDayOfWeek() == null) {
+            throw new BadRequestException("Day of week is required for recurring availability");
+        }
+        if (request.isRecurring()
+                && availabilityRepository.existsByTrainerIdAndDayOfWeekAndStartTimeAndEndTimeAndRecurringTrue(
+                       trainer.getId(), request.getDayOfWeek(), request.getStartTime(), request.getEndTime())) {
+            throw new BadRequestException("That window already exists for " + request.getDayOfWeek());
         }
 
         Availability availability = Availability.builder()
@@ -63,19 +78,44 @@ public class AvailabilityService {
     }
 
     /**
+     * Resolves the expert customers book against. Single-expert product: the
+     * owner of the most recently created availability window wins (i.e. whoever
+     * last edited working hours), otherwise the first ADMIN, otherwise the
+     * first TRAINER.
+     */
+    @Transactional(readOnly = true)
+    public BookingTrainerDto resolveBookingTrainer() {
+        return availabilityRepository.findFirstByOrderByIdDesc()
+            .map(a -> mapToBookingTrainerDto(a.getTrainer()))
+            .orElseGet(() -> userRepository.findFirstByRoleInOrderByIdAsc(List.of(Role.ADMIN, Role.TRAINER))
+                .map(this::mapToBookingTrainerDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainer", "role", "ADMIN/TRAINER")));
+    }
+
+    private BookingTrainerDto mapToBookingTrainerDto(User trainer) {
+        return BookingTrainerDto.builder()
+            .trainerId(trainer.getId())
+            .trainerName(trainer.getFirstName() + " " + trainer.getLastName())
+            .timezone(trainer.getTimezone())
+            .build();
+    }
+
+    /**
      * Get available consultation slots for a trainer on a specific date,
      * converted to the client's timezone.
-     * 
+     *
      * This method:
      * 1. Gets expert's timezone from User entity
      * 2. Validates client timezone
-     * 3. Generates slots in expert's timezone
-     * 4. Converts each slot to client's timezone
-     * 5. Filters out booked slots
-     * 6. Returns slots with complete timezone context
-     * 
+     * 3. Interprets the requested date in the CLIENT's calendar and finds
+     *    every expert-local date it spans
+     * 4. Generates slots from the windows of every spanned expert date
+     * 5. Keeps only slots that start on the client's picked day, in the future
+     * 6. Filters out booked slots
+     * 7. Returns slots with complete timezone context
+     *
      * @param trainerId The expert/trainer ID
-     * @param date The date to check availability
+     * @param date The date to check availability (client's calendar)
      * @param clientTimezone Client's IANA timezone ID (e.g., "Asia/Dubai")
      * @return List of available slots in client's timezone with context
      */
@@ -84,55 +124,68 @@ public class AvailabilityService {
         // Validate and get trainer
         User trainer = userRepository.findById(trainerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainer", "id", trainerId));
-        
+
         // Validate client timezone
         if (!TimezoneUtils.isValidTimezone(clientTimezone)) {
             throw new BadRequestException("Invalid client timezone: " + clientTimezone);
         }
-        
+
         ZoneId expertZone = trainer.getZoneId();  // Expert's timezone from User entity
         ZoneId clientZone = ZoneId.of(clientTimezone);
-        
-        log.debug("Generating slots for trainer {} in timezone {}, converting to client timezone {}", 
+
+        log.debug("Generating slots for trainer {} in timezone {}, converting to client timezone {}",
                   trainerId, expertZone, clientZone);
-        
-        // Find matching availabilities for the date
+
+        // The picked date is the client's calendar day — a big offset means it
+        // may span one or two expert-local dates.
+        Instant clientDayStart = date.atStartOfDay(clientZone).toInstant();
+        Instant clientDayEnd = date.plusDays(1).atStartOfDay(clientZone).toInstant();
+        List<LocalDate> spannedExpertDates = expertDatesBetween(clientDayStart, clientDayEnd, expertZone);
+
+        // Find matching availabilities across every spanned expert date
         List<Availability> availabilities = availabilityRepository.findByTrainerId(trainerId).stream()
-            .filter(a -> {
-                if (a.isRecurring()) {
-                    return a.getDayOfWeek() == date.getDayOfWeek();
-                } else {
-                    return date.equals(a.getSpecificDate());
-                }
-            })
+            .filter(a -> spannedExpertDates.stream().anyMatch(d -> matchesDate(a, d)))
             .toList();
 
         if (availabilities.isEmpty()) {
-            log.debug("No availability found for trainer {} on {}", trainerId, date);
+            log.debug("No availability found for trainer {} spanning client date {}", trainerId, date);
             return List.of();
         }
 
-        // Generate potential slots in EXPERT's timezone
+        // Generate potential slots in EXPERT's timezone, per (window, expert date)
         List<Instant> potentialSlotInstants = new ArrayList<>();
-        
+        Instant now = Instant.now();
+
         for (Availability avail : availabilities) {
-            LocalTime current = avail.getStartTime();
-            
-            while (!current.plusMinutes(45).isAfter(avail.getEndTime())) {
-                // Convert expert's local time to UTC instant
-                Instant slotInstant = TimezoneUtils.toInstant(date, current, expertZone);
-                potentialSlotInstants.add(slotInstant);
-                
-                current = current.plusMinutes(50); // 45 min consultation + 5 min buffer
+            for (LocalDate expertDate : spannedExpertDates) {
+                if (!matchesDate(avail, expertDate)) {
+                    continue;
+                }
+                // Minute-based walk (LocalTime would wrap past midnight and
+                // never terminate for windows ending late in the day).
+                int startMinute = avail.getStartTime().get(ChronoField.MINUTE_OF_DAY);
+                int endMinute = avail.getEndTime().get(ChronoField.MINUTE_OF_DAY);
+                for (int minute = startMinute; minute + 45 <= endMinute; minute += 50) {
+                    LocalTime current = LocalTime.of(minute / 60, minute % 60);
+                    // Skip local times that don't exist in the expert zone (DST gap)
+                    if (TimezoneUtils.timeExists(expertDate, current, expertZone)) {
+                        potentialSlotInstants.add(TimezoneUtils.toInstant(expertDate, current, expertZone));
+                    }
+                }
             }
         }
 
-        // Fetch booked slots for the date
-        List<Instant> bookedInstants = getBookedSlotsForDate(trainerId, date, expertZone);
+        // Fetch bookings that could collide with slots on this client day
+        List<Booking> bookings = getBookingsForRange(trainerId, clientDayStart, clientDayEnd);
 
-        // Filter out booked slots (considering 5-minute buffer)
+        // Keep only future slots that start on the client's picked day and
+        // aren't taken (same overlap rule as booking creation); drop
+        // duplicates caused by overlapping/contained windows.
         List<Instant> availableInstants = potentialSlotInstants.stream()
-            .filter(slot -> !isSlotBooked(slot, bookedInstants))
+            .filter(slot -> !slot.isBefore(now))
+            .filter(slot -> !slot.isBefore(clientDayStart) && slot.isBefore(clientDayEnd))
+            .filter(slot -> !isSlotBooked(slot, bookings))
+            .distinct()
             .sorted()
             .toList();
 
@@ -142,31 +195,45 @@ public class AvailabilityService {
             .toList();
     }
 
-    /**
-     * Get booked slot instants for a specific date
-     */
-    private List<Instant> getBookedSlotsForDate(Long trainerId, LocalDate date, ZoneId expertZone) {
-        // Get start and end of day in expert's timezone
-        Instant startOfDay = TimezoneUtils.toInstant(date, LocalTime.MIN, expertZone);
-        Instant endOfDay = TimezoneUtils.toInstant(date.plusDays(1), LocalTime.MIN, expertZone);
+    /** Expert-local dates spanned by the half-open instant range [start, end). */
+    private List<LocalDate> expertDatesBetween(Instant start, Instant end, ZoneId expertZone) {
+        LocalDate first = start.atZone(expertZone).toLocalDate();
+        LocalDate last = end.atZone(expertZone).toLocalDate();
+        return first.datesUntil(last.plusDays(1)).toList();
+    }
 
-        return bookingRepository.findAll().stream()
-            .filter(b -> b.getTrainer().getId().equals(trainerId))
-            .filter(b -> b.getStatus() == BookingStatus.PENDING || b.getStatus() == BookingStatus.CONFIRMED)
-            .filter(b -> !b.getStartTime().isBefore(startOfDay) && b.getStartTime().isBefore(endOfDay))
-            .map(Booking::getStartTime)
-            .toList();
+    /** Whether an availability window applies to the given expert-local date. */
+    private boolean matchesDate(Availability availability, LocalDate expertDate) {
+        if (availability.isRecurring()) {
+            return availability.getDayOfWeek() == expertDate.getDayOfWeek();
+        }
+        return expertDate.equals(availability.getSpecificDate());
     }
 
     /**
-     * Check if a slot is booked (considering 5-minute buffer)
+     * Bookings that could collide with slots inside the client-day instant
+     * range. Fetches bookings overlapping the range padded by one slot
+     * length so sessions spilling over the edges are still considered.
      */
-    private boolean isSlotBooked(Instant slot, List<Instant> bookedInstants) {
-        return bookedInstants.stream()
-            .anyMatch(booked -> {
-                long minutesApart = Math.abs(Duration.between(slot, booked).toMinutes());
-                return minutesApart < 45;  // Slots overlap if less than 45 minutes apart
-            });
+    private List<Booking> getBookingsForRange(Long trainerId, Instant start, Instant end) {
+        return bookingRepository.findConflictingBookings(
+            trainerId,
+            start.minus(Duration.ofMinutes(45)),
+            end.plus(Duration.ofMinutes(45)));
+    }
+
+    /**
+     * A slot is blocked iff it collides with a PENDING/CONFIRMED booking
+     * under the same ±5-minute-buffered interval-overlap rule the booking
+     * creation check uses.
+     */
+    private boolean isSlotBooked(Instant slotStart, List<Booking> bookings) {
+        Instant slotEnd = slotStart.plus(Duration.ofMinutes(45));
+        Instant bufferStart = slotStart.minus(Duration.ofMinutes(5));
+        Instant bufferEnd = slotEnd.plus(Duration.ofMinutes(5));
+        return bookings.stream()
+            .anyMatch(b -> b.getStartTime().isBefore(bufferEnd)
+                        && b.getEndTime().isAfter(bufferStart));
     }
 
     /**
@@ -191,10 +258,21 @@ public class AvailabilityService {
 
     @Transactional
     public void deleteAvailability(Long id) {
-        if (!availabilityRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Availability", "id", id);
+        Availability availability = availabilityRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Availability", "id", id));
+
+        String email = com.gymholic.security.SecurityUtils.getCurrentUserEmail();
+        User current = email != null
+            ? userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email))
+            : null;
+        if (current == null
+                || (current.getRole() != Role.ADMIN
+                    && !current.getId().equals(availability.getTrainer().getId()))) {
+            throw new AccessDeniedException("Only the owning trainer or an admin can delete availability");
         }
-        availabilityRepository.deleteById(id);
+
+        availabilityRepository.delete(availability);
     }
 
     private AvailabilityDto mapToDto(Availability availability) {
