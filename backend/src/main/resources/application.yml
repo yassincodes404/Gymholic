@@ -48,6 +48,12 @@ google:
 spring:
   application:
     name: gymholic-backend
+  # Store uploads: cover images up to 5MB and product PDFs up to 25MB
+  # (checked again in StoreService with friendlier error messages).
+  servlet:
+    multipart:
+      max-file-size: 26MB
+      max-request-size: 28MB
   jpa:
     open-in-view: false
     hibernate:

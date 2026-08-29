@@ -69,6 +69,17 @@ public class Booking {
     @Builder.Default
     private BookingStatus status = BookingStatus.PENDING;
 
+    /**
+     * Which service this booking is for. Null-safe accessors treat null as
+     * the historical OPEN_SESSION default (rows created before the column
+     * existed were backfilled, but defensive code still applies).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_type", nullable = false, length = 32)
+    @Builder.Default
+    private com.gymholic.common.enums.BookingServiceType serviceType =
+        com.gymholic.common.enums.BookingServiceType.OPEN_SESSION;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 

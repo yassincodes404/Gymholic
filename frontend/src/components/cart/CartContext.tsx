@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getCatalogProduct, type CatalogProduct } from "@/lib/catalog";
 import { buildBackendApiUrl } from "@/lib/api";
+import { ensureStoreProductsLoaded } from "@/lib/store";
 import { AUTH_CHANGED_EVENT, getStoredAuthToken } from "@/lib/auth";
 
 const CART_KEY = "gymholic-cart";
@@ -28,14 +29,21 @@ const CartContext = createContext<CartContextValue | null>(null);
 async function api<T>(path: string, init?: RequestInit): Promise<T | null> {
   const token = getStoredAuthToken();
   if (!token) return null;
-  const res = await fetch(buildBackendApiUrl(path), {
-    ...init,
-    headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      Authorization: `Bearer ${token}`,
-      ...init?.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(buildBackendApiUrl(path), {
+      ...init,
+      headers: {
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        Authorization: `Bearer ${token}`,
+        ...init?.headers,
+      },
+    });
+  } catch {
+    // Backend unreachable — degrade to the guest/localStorage cart instead
+    // of surfacing an unhandled "Failed to fetch" rejection.
+    return null;
+  }
   const payload = await res.json().catch(() => null);
   if (!res.ok || !payload?.success) return null;
   return payload.data as T;
@@ -56,10 +64,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const syncingRef = useRef(false);
 
-  // Initial load: server cart when signed in, localStorage otherwise.
+  // Initial load: server cart when signed in, localStorage otherwise. Store
+  // products are loaded first so cart items carrying backend slugs resolve.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      await ensureStoreProductsLoaded().catch(() => null);
+      if (cancelled) return;
       const server = await api<{ items: { productId: string }[] }>("cart");
       if (cancelled) return;
       if (server) {

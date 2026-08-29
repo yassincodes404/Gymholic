@@ -10,6 +10,7 @@ import com.gymholic.booking.dto.CreateBookingRequest;
 import com.gymholic.booking.dto.RescheduleBookingRequest;
 import com.gymholic.booking.dto.RescheduleLinkSummaryDto;
 import com.gymholic.booking.entity.Booking;
+import com.gymholic.common.enums.BookingServiceType;
 import com.gymholic.common.enums.BookingStatus;
 import com.gymholic.common.enums.Role;
 import com.gymholic.common.exception.BadRequestException;
@@ -42,6 +43,10 @@ public class BookingService {
 
     private static final Duration RESCHEDULE_WINDOW = Duration.ofDays(14);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
+    /** Paid consultations (strategy call, in-person, open session) are 45 minutes. */
+    private static final long PAID_SESSION_MINUTES = 45;
+    /** The free time session is one 3-hour block. */
+    private static final long FREE_SESSION_MINUTES = 180;
 
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
@@ -99,10 +104,19 @@ public class BookingService {
         if (request.getEndTime().isBefore(request.getStartTime())) {
             throw new BadRequestException("End time must be after start time");
         }
-        
+
+        BookingServiceType serviceType = resolveServiceType(request);
+        boolean freeSession = serviceType == BookingServiceType.FREE_SESSION;
+
+        if (freeSession && !settingsService.getBool("FREE_SESSION_ENABLED", true)) {
+            throw new BadRequestException("Free time sessions are currently disabled.");
+        }
+
         long durationMinutes = Duration.between(request.getStartTime(), request.getEndTime()).toMinutes();
-        if (durationMinutes != 45) {
-            throw new BadRequestException("Consultation duration must be exactly 45 minutes");
+        if (durationMinutes != (freeSession ? FREE_SESSION_MINUTES : PAID_SESSION_MINUTES)) {
+            throw new BadRequestException(freeSession
+                ? "Free time session duration must be exactly 3 hours"
+                : "Consultation duration must be exactly 45 minutes");
         }
 
         // Validate client timezone
@@ -162,6 +176,21 @@ public class BookingService {
             throw new BadRequestException("The requested time slot is not available due to conflicts");
         }
 
+        // One free session per trainer per expert-local day — enforced under
+        // the trainer row lock taken above, so concurrent creators are
+        // serialized and exactly one of them wins the day.
+        if (freeSession) {
+            LocalDate expertDate = request.getStartTime().atZone(expertZone).toLocalDate();
+            List<Booking> sameDayFreeSessions = bookingRepository.findFreeSessionsStartingBetween(
+                trainer.getId(),
+                List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED),
+                expertDate.atStartOfDay(expertZone).toInstant(),
+                expertDate.plusDays(1).atStartOfDay(expertZone).toInstant());
+            if (!sameDayFreeSessions.isEmpty()) {
+                throw new BadRequestException("The free session for this day has already been booked");
+            }
+        }
+
         Booking booking = Booking.builder()
             .client(client)
             .trainer(trainer)
@@ -172,12 +201,20 @@ public class BookingService {
             .meetingTimezone(expertZone.getId())  // Meeting happens in expert's timezone
             .notes(request.getNotes())
             .assessmentId(request.getAssessmentId())
+            .serviceType(serviceType)
             .status(BookingStatus.PENDING)
             .build();
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Booking created: ID={}, startTime={} (expert: {}, client: {})", 
-                 saved.getId(), saved.getStartTime(), expertZone, clientZone);
+        log.info("Booking created: ID={}, serviceType={}, startTime={} (expert: {}, client: {})",
+                 saved.getId(), saved.getServiceType(), saved.getStartTime(), expertZone, clientZone);
+
+        if (freeSession) {
+            // Free bookings skip payment entirely: straight to CONFIRMED via
+            // the standard pipeline (Meet/Calendar + client confirmation
+            // email). No "awaiting payment" admin email, no Payment row.
+            return confirmBooking(saved.getId());
+        }
 
         // Notify the admin/expert about the new (pending payment) booking
         String[] price = resolveBookingPrice(saved.getNotes());
@@ -190,6 +227,30 @@ public class BookingService {
         );
 
         return mapToDto(saved);
+    }
+
+    /**
+     * Resolves the service type for a new booking: an explicit, known
+     * serviceType on the request wins; otherwise the historical note-based
+     * detection ("In-Person" → IN_PERSON, "Strategy" → STRATEGY_CALL,
+     * anything else → the paid OPEN_SESSION fallback).
+     */
+    private BookingServiceType resolveServiceType(CreateBookingRequest request) {
+        if (request.getServiceType() != null && !request.getServiceType().isBlank()) {
+            try {
+                return BookingServiceType.valueOf(request.getServiceType().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Unknown service type: " + request.getServiceType());
+            }
+        }
+        String notes = request.getNotes();
+        if (notes != null && notes.contains("In-Person")) {
+            return BookingServiceType.IN_PERSON;
+        }
+        if (notes != null && notes.contains("Strategy")) {
+            return BookingServiceType.STRATEGY_CALL;
+        }
+        return BookingServiceType.OPEN_SESSION;
     }
 
     /**
@@ -217,6 +278,17 @@ public class BookingService {
         } catch (Exception e) {
             return new String[]{"150", currency};
         }
+    }
+
+    /**
+     * Booking-aware price resolution: the free time session is always free,
+     * everything else resolves from its notes as before.
+     */
+    public String[] resolveBookingPrice(Booking booking) {
+        if (booking != null && booking.getServiceType() == BookingServiceType.FREE_SESSION) {
+            return new String[]{"0", "USD"};
+        }
+        return resolveBookingPrice(booking == null ? null : booking.getNotes());
     }
 
     @Transactional(readOnly = true)
@@ -307,14 +379,14 @@ public class BookingService {
             saved.getClient().getFirstName(),
             saved.getTrainer().getFirstName(),
             clientDisplayTime(saved),
-            "45",
+            String.valueOf(Duration.between(saved.getStartTime(), saved.getEndTime()).toMinutes()),
             saved.getMeetLink(),
             meetingLabel,
             saved
         );
 
         // Notify the expert: consultation confirmed + paid (amount from the completed payment)
-        String[] fallbackPrice = resolveBookingPrice(saved.getNotes());
+        String[] fallbackPrice = resolveBookingPrice(saved);
         String amount = fallbackPrice[0];
         String currency = fallbackPrice[1];
         try {
@@ -398,7 +470,8 @@ public class BookingService {
         }
 
         validateNewTime(booking.getTrainer(), booking.getId(),
-            request.getNewStartTime(), request.getNewEndTime());
+            request.getNewStartTime(), request.getNewEndTime(),
+            booking.getServiceType() == BookingServiceType.FREE_SESSION ? FREE_SESSION_MINUTES : PAID_SESSION_MINUTES);
 
         Instant oldStartTime = booking.getStartTime();
         booking.setStartTime(request.getNewStartTime());
@@ -570,7 +643,8 @@ public class BookingService {
         }
 
         validateNewTime(booking.getTrainer(), booking.getId(),
-            request.getNewStartTime(), request.getNewEndTime());
+            request.getNewStartTime(), request.getNewEndTime(),
+            booking.getServiceType() == BookingServiceType.FREE_SESSION ? FREE_SESSION_MINUTES : PAID_SESSION_MINUTES);
 
         Instant oldStartTime = booking.getStartTime();
         booking.setStartTime(request.getNewStartTime());
@@ -678,13 +752,15 @@ public class BookingService {
     }
 
     /** Shared validation for any new booking time: duration, availability, conflicts. */
-    private void validateNewTime(User trainer, Long excludeBookingId, Instant newStart, Instant newEnd) {
+    private void validateNewTime(User trainer, Long excludeBookingId, Instant newStart, Instant newEnd, long expectedMinutes) {
         if (newEnd.isBefore(newStart)) {
             throw new BadRequestException("End time must be after start time");
         }
         long durationMinutes = Duration.between(newStart, newEnd).toMinutes();
-        if (durationMinutes != 45) {
-            throw new BadRequestException("Consultation duration must be exactly 45 minutes");
+        if (durationMinutes != expectedMinutes) {
+            throw new BadRequestException(expectedMinutes == FREE_SESSION_MINUTES
+                ? "Free time session duration must be exactly 3 hours"
+                : "Consultation duration must be exactly 45 minutes");
         }
 
         ZoneId expertZone = trainer.getZoneId();
@@ -755,6 +831,7 @@ public class BookingService {
             .clientTimezone(booking.getClientTimezone())
             .meetingTimezone(booking.getMeetingTimezone())
             .status(booking.getStatus())
+            .serviceType(booking.getServiceType() == null ? null : booking.getServiceType().name())
             .assessmentId(booking.getAssessmentId())
             .notes(booking.getNotes())
             .meetLink(booking.getMeetLink())

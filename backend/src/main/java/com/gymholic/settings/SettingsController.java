@@ -38,6 +38,7 @@ public class SettingsController {
         pricing.put("openSession", parse(all.get("BOOKING_PRICE_OPEN_SESSION"), 150));
         pricing.put("academyMembershipPrice", parse(all.get("ACADEMY_MEMBERSHIP_PRICE"), 29));
         pricing.put("academyPrePurchaseEnabled", settingsService.getBool("ACADEMY_PRE_PURCHASE_ENABLED", true));
+        pricing.put("freeSessionEnabled", settingsService.getBool("FREE_SESSION_ENABLED", true));
         return ResponseEntity.ok(ApiResponse.success(pricing));
     }
 

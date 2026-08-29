@@ -70,12 +70,16 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/v1/assessments/*").permitAll() // Update assessment
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments/*/submit").permitAll() // Submit assessment
                 .requestMatchers(HttpMethod.GET, "/api/v1/assessments/*").permitAll() // Get specific assessment
+                // Store browsing works for guests; PDF streaming and the library
+                // stay authenticated (default rule below).
+                .requestMatchers(HttpMethod.GET, "/api/store/categories", "/api/store/products", "/api/store/products/*", "/api/store/products/*/cover").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // No payments, orders, cart or bookings until the email is confirmed
                 .requestMatchers("/api/payments/**", "/api/orders/**", "/api/cart/**", "/api/bookings/**")
                     .hasAuthority("EMAIL_VERIFIED")
                 // Admin endpoints require ADMIN role
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/store/admin/**").hasRole("ADMIN")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )

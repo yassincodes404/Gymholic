@@ -1,28 +1,30 @@
-import { blueprintCategories, type BlueprintCategory } from "@/lib/blueprints";
+"use client";
 
 type BlueprintFiltersProps = {
-  active: BlueprintCategory | "All";
-  onChange: (value: BlueprintCategory | "All") => void;
+  active: string;
+  onChange: (value: string) => void;
+  /** Pill labels — category names (slug "all" reserved for the first pill). */
+  options: { label: string; value: string }[];
 };
 
 /** Minimal, visually-integrated category filter row — pills, not a sidebar. */
-export function BlueprintFilters({ active, onChange }: BlueprintFiltersProps) {
-  const options: (BlueprintCategory | "All")[] = ["All", ...blueprintCategories];
+export function BlueprintFilters({ active, onChange, options }: BlueprintFiltersProps) {
+  const pills = [{ label: "All", value: "all" }, ...options];
 
   return (
     <div className="flex flex-wrap gap-2 px-6 md:px-10 mb-10">
-      {options.map((opt) => (
+      {pills.map((opt) => (
         <button
-          key={opt}
+          key={opt.value}
           type="button"
-          onClick={() => onChange(opt)}
+          onClick={() => onChange(opt.value)}
           className="text-xs uppercase tracking-widest px-4 py-2 rounded-full transition-colors"
           style={{
-            background: active === opt ? "var(--orange)" : "rgba(245,241,232,0.06)",
-            color: active === opt ? "var(--void)" : "var(--paper)",
+            background: active === opt.value ? "var(--orange)" : "rgba(245,241,232,0.06)",
+            color: active === opt.value ? "var(--void)" : "var(--paper)",
           }}
         >
-          {opt}
+          {opt.label}
         </button>
       ))}
     </div>

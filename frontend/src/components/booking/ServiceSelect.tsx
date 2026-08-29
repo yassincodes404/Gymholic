@@ -12,7 +12,7 @@ export function ServiceSelect({
       <h1 className="display-hero text-4xl md:text-6xl mb-4">Book Your Session</h1>
       <p className="opacity-70 max-w-lg mb-12">Choose the type of session that fits what you need.</p>
 
-      <div className="grid md:grid-cols-3 gap-5">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
         {services.map((service) => (
           <button
             key={service.id}

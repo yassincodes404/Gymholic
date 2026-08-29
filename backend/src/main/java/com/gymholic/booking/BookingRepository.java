@@ -58,6 +58,20 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         @Param("start") Instant start,
         @Param("end") Instant end);
 
+    /**
+     * Live (PENDING/CONFIRMED) free time sessions for a trainer starting
+     * inside the half-open instant range — backs the one-per-day rule.
+     */
+    @Query("SELECT b FROM Booking b WHERE b.trainer.id = :trainerId " +
+           "AND b.serviceType = com.gymholic.common.enums.BookingServiceType.FREE_SESSION " +
+           "AND b.status IN :statuses " +
+           "AND b.startTime >= :start AND b.startTime < :end")
+    List<Booking> findFreeSessionsStartingBetween(
+        @Param("trainerId") Long trainerId,
+        @Param("statuses") List<BookingStatus> statuses,
+        @Param("start") Instant start,
+        @Param("end") Instant end);
+
     long countByStatus(BookingStatus status);
 
     List<Booking> findByStatusInAndStartTimeBetweenOrderByStartTimeAsc(

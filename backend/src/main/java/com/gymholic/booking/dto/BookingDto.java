@@ -59,6 +59,7 @@ public class BookingDto {
     private String meetingTimezone;
     
     private BookingStatus status;
+    private String serviceType;
     private java.util.UUID assessmentId;
     private String notes;
     private String meetLink;

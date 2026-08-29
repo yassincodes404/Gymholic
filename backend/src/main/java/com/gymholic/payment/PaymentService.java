@@ -40,6 +40,11 @@ public class PaymentService {
         Booking booking = bookingRepository.findById(request.getBookingId())
             .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", request.getBookingId()));
 
+        // Free time sessions never enter checkout at all.
+        if (booking.getServiceType() == com.gymholic.common.enums.BookingServiceType.FREE_SESSION) {
+            throw new BadRequestException("This free time session booking does not require payment.");
+        }
+
         PaymentProvider provider = paymentProviders.stream()
             .filter(p -> p.getProviderName().equals(request.getProvider()))
             .findFirst()

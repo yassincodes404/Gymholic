@@ -34,6 +34,47 @@ export function getAdminUserId(): number | null {
   }
 }
 
+/** Multipart upload (cover images / PDFs) with the admin bearer token. */
+export async function adminUpload<T>(path: string, file: File): Promise<T> {
+  const token = getStoredAuthToken();
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch(buildBackendApiUrl(path), {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body,
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok || !payload?.success) {
+    throw new Error(payload?.message || `Upload failed (${res.status})`);
+  }
+  return payload.data as T;
+}
+
+export interface StoreCategoryRow {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface StoreProductRow {
+  id: number;
+  slug: string;
+  title: string;
+  shortDescription: string | null;
+  price: number;
+  currency: string;
+  isFree: boolean;
+  featured: boolean;
+  hasCover: boolean;
+  hasPdf: boolean;
+  active: boolean;
+  category: { name: string; slug: string } | null;
+}
+
 export interface TrainerBooking {
   id: number;
   clientId: number;

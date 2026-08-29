@@ -15,7 +15,8 @@ export type ConsultationService = {
 // BOOKING_PRICE_IN_PERSON=275, BOOKING_PRICE_OPEN_SESSION=150,
 // BOOKING_CURRENCY=USD). The book page replaces price/currency at runtime
 // with the live values from GET /api/settings/pricing so admin price changes
-// are reflected on the website immediately. All services are paid.
+// are reflected on the website immediately, and hides the free time session
+// when FREE_SESSION_ENABLED is switched off.
 export const consultationServices: ConsultationService[] = [
   {
     id: "strategy-call",
@@ -62,6 +63,18 @@ export const consultationServices: ConsultationService[] = [
     description:
       "An online Google Meet session with open time — you pick any available slot in the calendar, join the meeting, and get guidance on where to start.",
     cta: "Book Open Time Session",
+  },
+  {
+    id: "free-session",
+    name: "Free Time Session",
+    shortLabel: "Free Time Session",
+    price: 0,
+    currency: "USD",
+    durationLabel: "3 Hours",
+    meetingType: "Online",
+    description:
+      "A free 3-hour open block with the expert — one session per day, first come first served. Pick any day with an open block and reserve it at no cost.",
+    cta: "Book Free Session",
   },
 ];
 

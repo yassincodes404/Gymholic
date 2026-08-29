@@ -8,6 +8,8 @@ export type BookingPricing = {
   openSession: number;
   academyMembershipPrice?: number;
   academyPrePurchaseEnabled?: boolean;
+  /** False hides the free 3-hour time session from the book page. */
+  freeSessionEnabled?: boolean;
 };
 
 /**
@@ -46,6 +48,18 @@ export function applyPricing(
     if (service.id === "discovery-call") {
       return { ...service, price: pricing.openSession, currency: pricing.currency ?? service.currency };
     }
+    if (service.id === "free-session") {
+      return { ...service, price: 0, currency: pricing.currency ?? service.currency };
+    }
     return service;
   });
+}
+
+/** Drops the free time session when the backend says it is disabled. */
+export function filterDisabledServices(
+  services: ConsultationService[],
+  pricing: BookingPricing | null
+): ConsultationService[] {
+  if (!pricing || pricing.freeSessionEnabled !== false) return services;
+  return services.filter((service) => service.id !== "free-session");
 }

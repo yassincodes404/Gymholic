@@ -46,13 +46,14 @@ interface ProfileForm {
   email: string;
 }
 
-type Tab = "profile" | "security" | "bookings" | "billing";
+type Tab = "profile" | "security" | "bookings" | "billing" | "library";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "profile", label: "Profile", icon: "👤" },
   { id: "security", label: "Security", icon: "🔐" },
   { id: "bookings", label: "Bookings", icon: "📅" },
   { id: "billing", label: "Billing", icon: "💳" },
+  { id: "library", label: "Library", icon: "📚" },
 ];
 
 const KIND_LABELS: Record<PaymentEntry["kind"], string> = {
@@ -360,6 +361,7 @@ export default function AccountPage() {
                     )}
                   </div>
                 )}
+                {tab === "library" && <LibraryTab />}
               </section>
             </div>
           )}
@@ -498,8 +500,112 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
   );
 }
 
-function SecurityTab({ email }: { email?: string }) {
-  const [currentPassword, setCurrent] = useState("");
+interface LibraryItem {
+  slug: string;
+  title: string;
+  shortDescription: string | null;
+  isFree: boolean;
+  owned: boolean;
+  hasCover: boolean;
+  category: { name: string; slug: string } | null;
+}
+
+function LibraryTab() {
+  const [items, setItems] = useState<LibraryItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = getStoredAuthToken();
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(buildBackendApiUrl("store/library"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !payload?.success) throw new Error("Could not load your library.");
+        if (!cancelled) setItems(payload.data ?? []);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load your library.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (error) {
+    return (
+      <div className="bg-surface border border-red-500/30 rounded-2xl p-10 text-center">
+        <p className="text-red-400">{error}</p>
+      </div>
+    );
+  }
+
+  if (items === null) {
+    return (
+      <div className="bg-surface border border-paper/10 rounded-2xl p-10 text-center text-paper/60">
+        Loading your library…
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold mb-4">Library</h2>
+      {items.length === 0 ? (
+        <div className="bg-surface border border-paper/10 rounded-2xl p-10 text-center">
+          <p className="text-paper/60">Your library is empty.</p>
+          <p className="text-xs text-paper/40 mt-2 mb-5">
+            Free blueprints appear here instantly; purchased ones land here after checkout.
+          </p>
+          <Link href="/blueprints" className="inline-block bg-orange text-void font-semibold px-6 py-2.5 rounded-full hover:bg-orange/90 transition-colors">
+            Browse Blueprints
+          </Link>
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
+          {items.map((item) => (
+            <div key={item.slug} className="bg-surface border border-paper/10 rounded-xl p-4 flex gap-4">
+              <div className="w-16 h-20 shrink-0">
+                {item.hasCover ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={buildBackendApiUrl(`store/products/${item.slug}/cover`)}
+                    alt=""
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                ) : (
+                  <div className="w-full h-full rounded-lg bg-paper/5 border border-paper/10 flex items-center justify-center text-xl" aria-hidden>
+                    📄
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0 flex flex-col">
+                <p className="text-xs uppercase tracking-wider text-orange mb-1">
+                  {item.category?.name ?? "Blueprint"}
+                </p>
+                <p className="font-medium truncate">{item.title}</p>
+                <p className="text-xs text-paper/40 mt-0.5">
+                  {item.isFree ? "Free" : item.owned ? "Purchased" : ""}
+                </p>
+                <Link
+                  href={`/blueprints/${item.slug}`}
+                  className="mt-auto self-start text-sm text-orange hover:underline pt-2"
+                >
+                  Open
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SecurityTab({ email }: { email?: string }) {  const [currentPassword, setCurrent] = useState("");
   const [newPassword, setNew] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);

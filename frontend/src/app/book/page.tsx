@@ -14,7 +14,7 @@ import { PaymentForm } from "@/components/checkout/PaymentForm";
 import { TermsAcceptance } from "@/components/checkout/TermsAcceptance";
 import type { ConsultationService } from "@/lib/consultations";
 import { consultationServices } from "@/lib/consultations";
-import { applyPricing, fetchBookingPricing } from "@/lib/pricing";
+import { applyPricing, fetchBookingPricing, filterDisabledServices } from "@/lib/pricing";
 import { dateKey, formatDateLabel } from "@/lib/bookingSlots";
 import { useLenis } from "@/components/motion/useLenis";
 import { ScrollRefresher } from "@/components/motion/ScrollRefresher";
@@ -98,6 +98,11 @@ export default function BookPage() {
   const [embeddedCheckoutUrl, setEmbeddedCheckoutUrl] = useState<string | null>(null);
   const [embeddedBookingId, setEmbeddedBookingId] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Bumped after a lost booking race so the month calendar re-fetches.
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+
+  // The free 3-hour time session: free slots, no payment step.
+  const isFreeSession = service?.id === "free-session";
 
   // Which gateway checkout should use ("paymob" when enabled in Admin →
   // Integrations, "mock" in dev). Public endpoint.
@@ -120,14 +125,18 @@ export default function BookPage() {
   useEffect(() => {
     let cancelled = false;
     fetchBookingPricing().then((pricing) => {
-      if (!cancelled && pricing) setServices(applyPricing(consultationServices, pricing));
+      if (!cancelled && pricing) {
+        setServices(filterDisabledServices(applyPricing(consultationServices, pricing), pricing));
+      }
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const stepOrder: Step[] = ["service", "datetime", "details", "payment", "confirmation"];
+  const stepOrder: Step[] = isFreeSession
+    ? ["service", "datetime", "details", "confirmation"]
+    : ["service", "datetime", "details", "payment", "confirmation"];
   const currentIndex = stepOrder.indexOf(step);
 
   // The real slot list requires an authenticated session; guests keep the
@@ -177,6 +186,7 @@ export default function BookPage() {
       date: dateKey(date),
       clientTimezone: getClientTimezone(),
     });
+    if (isFreeSession) query.set("service", "FREE_SESSION");
     fetch(`${buildBackendApiUrl(`/availability/trainer/${trainerId}/slots`)}?${query.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -206,7 +216,7 @@ export default function BookPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, backendMode, step, trainerId]);
+  }, [date, backendMode, step, trainerId, isFreeSession]);
 
   const backendSlotLabels = [...new Set(backendSlots.map((slot) => toTemplateTimeLabel(slot.displayTime)))];
 
@@ -283,10 +293,12 @@ export default function BookPage() {
 
     const clientTimezone = getClientTimezone();
     const effectiveTrainerId = trainerId ?? FALLBACK_TRAINER_ID;
+    const freeSession = selectedService.id === "free-session";
     const query = new URLSearchParams({
       date: dateKey(selectedDate),
       clientTimezone,
     });
+    if (freeSession) query.set("service", "FREE_SESSION");
 
     const availabilityResponse = await fetch(
       `${buildBackendApiUrl(`/availability/trainer/${effectiveTrainerId}/slots`)}?${query.toString()}`,
@@ -328,6 +340,7 @@ export default function BookPage() {
         endTime: matchingSlot.endTime,
         clientTimezone,
         notes: buildBookingNotes(selectedService, details),
+        ...(freeSession ? { serviceType: "FREE_SESSION" } : {}),
       }),
     });
 
@@ -340,8 +353,39 @@ export default function BookPage() {
       );
     }
 
-    const createdBooking = (bookingData as { data?: { id?: number | string } } | null)?.data;
-    return createdBooking?.id ? Number(createdBooking.id) : null;
+    return (bookingData as { data?: { id?: number | string; status?: string; meetLink?: string | null } } | null)
+      ?.data ?? null;
+  }
+
+  /**
+   * Free Time Session flow: the backend confirms the booking immediately
+   * (no payment), so the created booking already carries its final status
+   * and Meet link — straight to the confirmation step.
+   */
+  async function runBackendFreeBookingFlow() {
+    if (!service || !date || !time) return;
+    setPaying(true);
+    setBookingError(null);
+    setConfirmedMeetLink(null);
+    setConfirmedStatus(null);
+    try {
+      const created = await tryCreateBackendBooking(service, date, time);
+      if (!created?.id) {
+        throw new BookingFlowError("The backend rejected this booking.", false);
+      }
+      setBookingRef(`BK-${created.id}`);
+      setConfirmedStatus(created.status ?? "CONFIRMED");
+      setConfirmedMeetLink(created.meetLink ?? null);
+      setStep("confirmation");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "That slot is no longer available. Please pick another time.";
+      setBookingError(message);
+      setTime(null);
+      setCalendarRefreshKey((key) => key + 1);
+      setStep("datetime");
+    } finally {
+      setPaying(false);
+    }
   }
 
   /**
@@ -356,7 +400,8 @@ export default function BookPage() {
     setPaying(true);
     setBookingError(null);
     try {
-      const bookingId = await tryCreateBackendBooking(service, date, time);
+      const created = await tryCreateBackendBooking(service, date, time);
+      const bookingId = created?.id ? Number(created.id) : null;
       if (!bookingId) {
         throw new BookingFlowError("The backend rejected this booking.", false);
       }
@@ -429,6 +474,7 @@ export default function BookPage() {
       const message = error instanceof Error ? error.message : "Payment failed. Please try again.";
       setBookingError(message);
       setTime(null);
+      setCalendarRefreshKey((key) => key + 1);
       setStep("datetime");
     } finally {
       setPaying(false);
@@ -442,7 +488,8 @@ export default function BookPage() {
     setConfirmedStatus(null);
 
     try {
-      const backendBookingId = await tryCreateBackendBooking(service, date, time);
+      const created = await tryCreateBackendBooking(service, date, time);
+      const backendBookingId = created?.id ? Number(created.id) : null;
       if (backendBookingId) {
         setBookingRef(`BK-${backendBookingId}`);
         setStep("confirmation");
@@ -491,7 +538,12 @@ export default function BookPage() {
       <Header />
       <main className="section-dark min-h-screen px-6 md:px-10 pt-32 pb-24">
         <div className="max-w-4xl">
-          {step !== "service" && <BookingProgress currentIndex={currentIndex} />}
+          {step !== "service" && (
+        <BookingProgress
+          currentIndex={currentIndex}
+          steps={isFreeSession ? ["Service", "Date & Time", "Details", "Confirmed"] : undefined}
+        />
+      )}
 
           {bookingError && step === "datetime" && (
             <p className="text-sm mb-6" style={{ color: "var(--orange)" }}>
@@ -519,6 +571,9 @@ export default function BookPage() {
                 }}
                 onAvailabilityForDate={setBookedTimes}
                 authDriven={backendMode === true}
+                trainerId={backendMode === true ? trainerId : null}
+                serviceParam={isFreeSession ? "FREE_SESSION" : null}
+                refreshKey={calendarRefreshKey}
               />
               <div>
                 {date ? (
@@ -552,10 +607,21 @@ export default function BookPage() {
                 {detailsValid ? (
                   <button
                     type="button"
-                    className="btn-pill w-full justify-center"
-                    onClick={() => setStep("payment")}
+                    className="btn-pill w-full justify-center disabled:opacity-50"
+                    disabled={paying}
+                    onClick={() => {
+                      if (isFreeSession) {
+                        runBackendFreeBookingFlow().catch(() => {});
+                      } else {
+                        setStep("payment");
+                      }
+                    }}
                   >
-                    Continue to Payment
+                    {paying
+                      ? "Confirming…"
+                      : isFreeSession
+                        ? "Confirm Free Booking"
+                        : "Continue to Payment"}
                   </button>
                 ) : (
                   <p className="text-sm opacity-40">Fill in your details to continue.</p>

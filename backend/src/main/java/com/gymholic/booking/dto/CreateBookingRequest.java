@@ -61,4 +61,11 @@ public class CreateBookingRequest {
     private java.util.UUID assessmentId;
 
     private String notes;
+
+    /**
+     * Optional explicit service type (STRATEGY_CALL | IN_PERSON |
+     * OPEN_SESSION | FREE_SESSION). When omitted the service is derived
+     * from the notes using the historical matching rules.
+     */
+    private String serviceType;
 }

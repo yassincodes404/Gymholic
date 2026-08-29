@@ -209,9 +209,15 @@ export async function resendVerificationCode(email: string): Promise<void> {
 /** Verifies the stored token against the backend and returns the current user. */
 export async function fetchCurrentUser(token: string | null): Promise<AuthUser | null> {
   if (!token) return null;
-  const res = await fetch(buildBackendApiUrl("users/me"), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let res: Response;
+  try {
+    res = await fetch(buildBackendApiUrl("users/me"), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // Backend unreachable — treat as "no session" instead of throwing.
+    return null;
+  }
   if (!res.ok) return null;
   const payload = await res.json().catch(() => null);
   if (!payload?.success || !payload?.data) return null;

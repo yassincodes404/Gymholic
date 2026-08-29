@@ -132,15 +132,20 @@ class SlotGenerationIntegrationTest {
     @Test
     @WithMockUser(username = "client@newyork.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
     void slots_PastDate_ReturnsNone() throws Exception {
+        // "Yesterday" must be computed in the zone the query runs in: with a
+        // JVM default zone ahead of UTC (e.g. Africa/Cairo), LocalDate.now()
+        // can already be on tomorrow's date and minusDays(1) still has
+        // unstarted — correctly offered — UTC slots.
+        LocalDate yesterday = LocalDate.now(ZoneOffset.UTC).minusDays(1);
         availabilityRepository.save(Availability.builder()
                 .trainer(trainer)
-                .dayOfWeek(LocalDate.now().minusDays(1).getDayOfWeek())
+                .dayOfWeek(yesterday.getDayOfWeek())
                 .startTime(LocalTime.of(0, 0))
                 .endTime(LocalTime.of(23, 59))
                 .recurring(true)
                 .build());
 
-        JsonNode slots = fetchSlots(trainer.getId(), LocalDate.now().minusDays(1), "UTC");
+        JsonNode slots = fetchSlots(trainer.getId(), yesterday, "UTC");
         assertEquals(0, slots.size(), "Past dates must not offer any slots");
     }
 

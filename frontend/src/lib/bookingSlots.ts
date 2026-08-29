@@ -32,7 +32,7 @@ export function isClosedDay(date: Date): boolean {
   return date.getDay() === CLOSED_WEEKDAY;
 }
 
-export type DayStatus = "available" | "fully-booked" | "unavailable" | "selected";
+export type DayStatus = "available" | "fully-booked" | "unavailable" | "closed" | "booked" | "selected";
 
 export function getDayStatus(date: Date, bookedTimesForDay: string[], isSelected: boolean): DayStatus {
   if (isSelected) return "selected";

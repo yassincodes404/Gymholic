@@ -34,6 +34,7 @@ public class OrderService {
     private final NotificationService notificationService;
     private final com.gymholic.whitelist.WhitelistRepository whitelistRepository;
     private final com.gymholic.settings.SettingsService settingsService;
+    private final com.gymholic.store.repository.ProductRepository productRepository;
 
     /**
      * Checks out the user's cart into a paid order. Payments are still in
@@ -50,31 +51,52 @@ public class OrderService {
             throw new BadRequestException("Your cart is empty.");
         }
 
-        BigDecimal total = cartItems.stream()
-            .map(CartItem::getPrice)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         Order order = Order.builder()
             .user(user)
             .status(Order.Status.PAID)
-            .total(total)
+            .total(BigDecimal.ZERO)
             .currency(cartItems.get(0).getCurrency())
             .providerName("mock")
             .providerRef("mock-order-" + UUID.randomUUID())
             .build();
         Order saved = orderRepository.save(order);
 
+        // Server-side pricing for store products: the canonical id is the
+        // product slug, and when a cart item matches one, the store's title/
+        // price win — a tampered client-sent price can never override them
+        // (mirrors the booking price philosophy in BookingService).
         List<OrderItem> items = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        String currency = cartItems.get(0).getCurrency();
         for (CartItem cartItem : cartItems) {
+            String productType = cartItem.getProductType();
+            String title = cartItem.getTitle();
+            BigDecimal unitPrice = cartItem.getPrice();
+            var storeProduct = productRepository.findBySlug(cartItem.getProductId()).orElse(null);
+            if (storeProduct != null) {
+                if (!storeProduct.isActive()) {
+                    throw new BadRequestException(
+                        "'" + storeProduct.getTitle() + "' is no longer available. Remove it from your cart to continue.");
+                }
+                title = storeProduct.getTitle();
+                unitPrice = storeProduct.isFree() ? BigDecimal.ZERO : storeProduct.getPrice();
+                currency = storeProduct.getCurrency();
+                productType = "BLUEPRINT";
+            }
+            total = total.add(unitPrice);
             items.add(orderItemRepository.save(OrderItem.builder()
                 .order(saved)
                 .productId(cartItem.getProductId())
-                .productType(cartItem.getProductType())
-                .title(cartItem.getTitle())
-                .unitPrice(cartItem.getPrice())
+                .productType(productType)
+                .title(title)
+                .unitPrice(unitPrice)
                 .quantity(1)
                 .build()));
         }
+
+        saved.setTotal(total);
+        saved.setCurrency(currency);
+        orderRepository.save(saved);
 
         cartRepository.deleteByUserId(user.getId());
 

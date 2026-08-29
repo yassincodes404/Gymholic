@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import EmailVerificationForm from "@/components/auth/EmailVerificationForm";
 import {
   googleSignIn,
@@ -27,6 +27,7 @@ type Mode = "password" | "otp-request" | "otp-verify";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -39,7 +40,11 @@ export default function LoginPage() {
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
   function finishSignIn(user: AuthUser) {
-    router.push(user.role === "ADMIN" ? "/admin" : "/");
+    // ?next=/path sends the user back where they came from (same-origin
+    // relative paths only — e.g. a locked Blueprint they tried to open).
+    const next = searchParams.get("next");
+    const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+    router.push(user.role === "ADMIN" ? "/admin" : safeNext ?? "/");
   }
 
   useEffect(() => {
