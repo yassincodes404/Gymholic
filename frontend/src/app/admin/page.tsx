@@ -154,7 +154,7 @@ export default function AdminPage() {
                     {stats!.recentNoShows!.slice(0, 3).map((n) => (
                       <li key={n.id} className="flex items-center justify-between gap-2">
                         <span className="truncate">{n.clientName}</span>
-                        <span className={n.refundDue ? "text-red-300" : "text-paper/50"} whitespace-nowrap>
+                        <span className={`whitespace-nowrap ${n.refundDue ? "text-red-300" : "text-paper/50"}`}>
                           {n.refundDue ? "Expert missed — refund" : "Client missed"}
                         </span>
                       </li>
