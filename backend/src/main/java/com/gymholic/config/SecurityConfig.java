@@ -66,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/integrations/google/callback").permitAll()
                 .requestMatchers("/api/integrations/google/risc").permitAll() // Cross-Account Protection push (JWT-verified)
                 .requestMatchers(HttpMethod.POST, "/api/whitelist").permitAll() // Join waitlist (guest-friendly)
+                .requestMatchers(HttpMethod.POST, "/api/support").permitAll() // Contact form (rate-limited)
                 .requestMatchers(HttpMethod.GET, "/api/settings/pricing").permitAll() // Public booking prices
                 .requestMatchers("/api/bookings/reschedule/**").permitAll() // One-time no-show reschedule links (token-protected)
                 .requestMatchers(HttpMethod.POST, "/api/v1/assessments").permitAll() // Start assessment

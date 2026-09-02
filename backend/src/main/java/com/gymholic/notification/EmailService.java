@@ -59,14 +59,30 @@ public class EmailService {
     @Async
     public void sendEmail(String to, String subject, String templateName,
                           Map<String, Object> variables) {
-        sendEmail(to, subject, templateName, variables, List.of());
+        sendEmail(to, null, subject, templateName, variables, List.of());
     }
 
     @Async
     public void sendEmail(String to, String subject, String templateName,
                           Map<String, Object> variables, List<EmailAttachment> attachments) {
+        sendEmail(to, null, subject, templateName, variables, attachments);
+    }
+
+    /**
+     * Send with a per-message reply-to (e.g. a support message replies
+     * straight to the client who wrote it, not the global reply-to).
+     */
+    @Async
+    public void sendEmail(String to, String replyTo, String subject, String templateName,
+                          Map<String, Object> variables) {
+        sendEmail(to, replyTo, subject, templateName, variables, List.of());
+    }
+
+    @Async
+    public void sendEmail(String to, String replyTo, String subject, String templateName,
+                          Map<String, Object> variables, List<EmailAttachment> attachments) {
         try {
-            sendEmailNow(to, subject, templateName, variables, attachments);
+            sendEmailNow(to, replyTo, subject, templateName, variables, attachments);
             log.info("Email sent to {} with subject: {}", to, subject);
         } catch (Exception e) {
             // Never let email problems roll back booking/payment transactions.
@@ -86,29 +102,36 @@ public class EmailService {
     public void sendEmailNow(String to, String subject, String templateName,
                              Map<String, Object> variables,
                              List<EmailAttachment> attachments) throws Exception {
+        sendEmailNow(to, null, subject, templateName, variables, attachments);
+    }
+
+    public void sendEmailNow(String to, String replyTo, String subject, String templateName,
+                             Map<String, Object> variables,
+                             List<EmailAttachment> attachments) throws Exception {
         Context context = new Context();
         context.setVariables(variables);
         String htmlContent = templateEngine.process(templateName, context);
 
         if (brevoConfigService.isBrevoActive()) {
-            sendViaBrevo(to, subject, htmlContent, attachments);
+            sendViaBrevo(to, subject, htmlContent, attachments, replyTo);
         } else {
-            sendViaSmtp(to, subject, htmlContent, attachments);
+            sendViaSmtp(to, subject, htmlContent, attachments, replyTo);
         }
     }
 
     private void sendViaBrevo(String to, String subject, String htmlContent,
-                              List<EmailAttachment> attachments) {
+                              List<EmailAttachment> attachments, String replyTo) {
         BrevoConfigService.BrevoCredentials creds = brevoConfigService.getBrevoCredentials();
 
         Map<String, Object> body = new HashMap<>();
         body.put("sender", Map.of(
             "name", creds.senderName() != null ? creds.senderName() : fromName,
             "email", creds.senderEmail()));
-        if (replyToAddress != null && !replyToAddress.isBlank()) {
+        String effectiveReplyTo = replyTo != null && !replyTo.isBlank() ? replyTo : replyToAddress;
+        if (effectiveReplyTo != null && !effectiveReplyTo.isBlank()) {
             body.put("replyTo", Map.of(
                 "name", creds.senderName() != null ? creds.senderName() : fromName,
-                "email", replyToAddress));
+                "email", effectiveReplyTo));
         }
         body.put("to", List.of(Map.of("email", to)));
         body.put("subject", subject);
@@ -140,13 +163,14 @@ public class EmailService {
     }
 
     private void sendViaSmtp(String to, String subject, String htmlContent,
-                             List<EmailAttachment> attachments) throws Exception {
+                             List<EmailAttachment> attachments, String replyTo) throws Exception {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setFrom(fromAddress, fromName);
         helper.setTo(to);
-        if (replyToAddress != null && !replyToAddress.isBlank()) {
-            helper.setReplyTo(replyToAddress);
+        String effectiveReplyTo = replyTo != null && !replyTo.isBlank() ? replyTo : replyToAddress;
+        if (effectiveReplyTo != null && !effectiveReplyTo.isBlank()) {
+            helper.setReplyTo(effectiveReplyTo);
         }
         helper.setSubject(subject);
         helper.setText(htmlContent, true);

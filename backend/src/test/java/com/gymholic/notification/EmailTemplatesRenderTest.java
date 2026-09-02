@@ -88,6 +88,19 @@ class EmailTemplatesRenderTest {
     }
 
     @Test
+    void supportEmailsAreBranded() {
+        assertBranded("support-admin-alert", Map.of(
+            "clientName", "Yassin",
+            "clientEmail", "y@g.com",
+            "categoryLabel", "Payment & refund",
+            "subject", "Payment taken twice",
+            "message", "Please check my payment."));
+        assertBranded("support-ack", Map.of(
+            "name", "Yassin",
+            "subject", "Payment taken twice"));
+    }
+
+    @Test
     void verificationCodeIsBranded() {
         assertBranded("email-verification-code", Map.of(
             "name", "Yassin",

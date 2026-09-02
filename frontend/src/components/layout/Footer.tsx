@@ -62,19 +62,24 @@ export function Footer() {
 
       <div className="px-6 md:px-10 mt-14 pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between gap-3 text-xs opacity-50">
         <span>© {new Date().getFullYear()} Gymholic. All rights reserved.</span>
-        <a
-          href="https://instagram.com/gymholic"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 hover:text-orange transition-colors"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-            <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.4" />
-            <circle cx="12" cy="12" r="3.6" />
-            <circle cx="16.9" cy="7.1" r="0.9" fill="currentColor" stroke="none" />
-          </svg>
-          Instagram
-        </a>
+        <div className="flex items-center gap-5">
+          <Link href="/contact" className="hover:text-orange transition-colors">
+            Contact &amp; Support
+          </Link>
+          <a
+            href="https://instagram.com/gymholic"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 hover:text-orange transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="4.4" />
+              <circle cx="12" cy="12" r="3.6" />
+              <circle cx="16.9" cy="7.1" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+            Instagram
+          </a>
+        </div>
         <span>Egypt · UAE · GCC · Worldwide</span>
       </div>
     </footer>

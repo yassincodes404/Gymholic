@@ -24,6 +24,7 @@ public class RateLimitService {
     public static final String KEY_RESEND = "auth:resend";
     public static final String KEY_FORGOT = "auth:forgot";
     public static final String KEY_ADMIN_LOGIN = "admin:login";
+    public static final String KEY_SUPPORT = "support:contact";
 
     private record Window(int maxEvents, long windowSeconds) {
     }
@@ -36,9 +37,15 @@ public class RateLimitService {
         KEY_OTP_VERIFY, new Window(20, 900),
         KEY_RESEND, new Window(5, 900),
         KEY_FORGOT, new Window(5, 900),
-        KEY_ADMIN_LOGIN, new Window(8, 600));
+        KEY_ADMIN_LOGIN, new Window(8, 600),
+        KEY_SUPPORT, new Window(5, 3600));
 
     private final Map<String, Deque<Instant>> hits = new ConcurrentHashMap<>();
+
+    /** Test hook: clears all recorded hits. */
+    public void reset() {
+        hits.clear();
+    }
 
     /** Records an event and reports whether the key is now over the limit. */
     public boolean isOverLimit(String ruleKey, String identity) {

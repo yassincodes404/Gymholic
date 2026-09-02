@@ -388,4 +388,36 @@ public class NotificationService {
                 "earlyAccess", earlyAccess
             ));
     }
+
+    /**
+     * Support message submitted from /contact: alerts the team with the
+     * client's address as reply-to (answering lands in the client's inbox)
+     * and sends the client a short acknowledgment.
+     */
+    public void sendSupportAdminAlert(String adminEmail, String clientName, String clientEmail,
+                                      String category, String subject, String message) {
+        emailService.sendEmail(
+            adminEmail,
+            clientEmail,
+            "New support message: " + subject + " — Gymholic",
+            "support-admin-alert",
+            Map.of(
+                "clientName", clientName != null && !clientName.isBlank() ? clientName : "A client",
+                "clientEmail", clientEmail,
+                "categoryLabel", category,
+                "subject", subject,
+                "message", message
+            ));
+    }
+
+    public void sendSupportAcknowledgment(String clientEmail, String clientName, String subject) {
+        emailService.sendEmail(
+            clientEmail,
+            "We received your message — Gymholic",
+            "support-ack",
+            Map.of(
+                "name", clientName != null && !clientName.isBlank() ? clientName : "there",
+                "subject", subject
+            ));
+    }
 }
