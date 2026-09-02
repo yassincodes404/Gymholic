@@ -1037,25 +1037,37 @@ function MembershipTab({ email }: { email?: string }) {
             href="/academy"
             className="inline-block mt-6 bg-orange text-void font-semibold px-6 py-2.5 rounded-full hover:bg-orange/90 transition-colors"
           >
-            Get Early Access again
+            {salesPaused ? "Join the Waitlist" : "Get Early Access again"}
           </Link>
         </div>
       ) : (
         <div className="bg-surface border border-paper/10 rounded-2xl p-8 md:p-10 text-center">
           <p className="text-xs uppercase tracking-widest text-orange mb-3">Early Access</p>
-          <p className="text-xl font-semibold mb-2">
-            {price !== null ? `One payment of $${price} — the whole library.` : "One membership. The whole library."}
-          </p>
-          <p className="text-sm text-paper/60 max-w-md mx-auto mb-6">
-            Pre-purchase now to lock founding-member pricing. Your membership lives in
-            this account with every future lesson, PDF and framework included.
-          </p>
+          {salesPaused ? (
+            <>
+              <p className="text-xl font-semibold mb-2">Be first inside when the Academy opens.</p>
+              <p className="text-sm text-paper/60 max-w-md mx-auto mb-6">
+                Membership sales are paused while the library is being finished.
+                Join the waitlist and you&apos;re emailed the minute doors open.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xl font-semibold mb-2">
+                {price !== null ? `One payment of $${price} — the whole library.` : "One membership. The whole library."}
+              </p>
+              <p className="text-sm text-paper/60 max-w-md mx-auto mb-6">
+                Pre-purchase now to lock founding-member pricing. Your membership lives in
+                this account with every future lesson, PDF and framework included.
+              </p>
+            </>
+          )}
           <div className="flex flex-wrap gap-3 justify-center">
             <Link
-              href="/academy"
+              href={salesPaused ? "/academy#waitlist" : "/academy"}
               className="bg-orange text-void font-semibold px-6 py-2.5 rounded-full hover:bg-orange/90 transition-colors"
             >
-              Get Early Access
+              {salesPaused ? "Join the Waitlist" : "Get Early Access"}
             </Link>
             <Link
               href="/blueprints"

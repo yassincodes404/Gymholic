@@ -749,7 +749,8 @@ html {
   button,
   [role='button'],
   select,
-  label,
+  label[for],
+  label:has(input[type='checkbox'], input[type='radio'], button, select),
   summary {
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cpath d='M3 1.5 L3 19 L7.6 15.2 L10.2 21 L13.3 19.6 L10.7 13.9 L16.5 13.4 Z' fill='%23ff6a00' stroke='%230a0a0a' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E")
       2 2,
