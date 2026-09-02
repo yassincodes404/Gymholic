@@ -82,7 +82,7 @@ function PayPageContent() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ ref: string; meetLink: string | null } | null>(null);
+  const [result, setResult] = useState<{ ref: string; meetLink: string | null; confirmed: boolean } | null>(null);
   // The embedded Paymob form gets a skeleton until its onload fires — the
   // frame is dynamic: responsive height + fade-in when it's really there.
   const [frameLoaded, setFrameLoaded] = useState(false);
@@ -199,7 +199,7 @@ function PayPageContent() {
         if (res.ok && payload?.data) {
           const status = payload.data.status as string;
           if (status === "CONFIRMED" || status === "COMPLETED") {
-            setResult({ ref: `BK-${id}`, meetLink: payload.data.meetLink ?? null });
+            setResult({ ref: `BK-${id}`, meetLink: payload.data.meetLink ?? null, confirmed: true });
             setStage("success");
             return;
           }
@@ -208,7 +208,10 @@ function PayPageContent() {
         // transient — keep polling
       }
     }
-    setResult({ ref: `BK-${id}`, meetLink: null });
+    // Webhook slower than the poll window: money is captured and the
+    // booking will confirm on the webhook — say so honestly instead of
+    // claiming a confirmation that hasn't happened yet.
+    setResult({ ref: `BK-${id}`, meetLink: null, confirmed: false });
     setStage("success");
   }, []);
 
@@ -385,7 +388,9 @@ function PayPageContent() {
           </div>
           <h1 className="text-2xl font-bold mb-2" style={{ color: theme.ink }}>Payment received</h1>
           <p className="text-sm mb-8" style={{ color: theme.muted }}>
-            Booking {result.ref} is confirmed — your calendar invite and receipt are on the way by email.
+            {result.confirmed
+              ? `Booking ${result.ref} is confirmed — your calendar invite and receipt are on the way by email.`
+              : `Booking ${result.ref} is being finalized. Your confirmation email with the Google Meet link arrives within a few minutes, and the session is always visible under Account → Bookings.`}
           </p>
           {result.meetLink && (
             <a href={result.meetLink} target="_blank" rel="noreferrer" className="inline-block w-full mb-3 text-white font-semibold py-3 rounded-xl" style={{ background: ACCENT }}>
