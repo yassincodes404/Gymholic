@@ -11,7 +11,7 @@ export default function TermsPage() {
           Terms & Conditions
         </h1>
         <p className="mb-6">
-          Last updated: August 16, 2026
+          Last updated: September 2, 2026
         </p>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
@@ -111,20 +111,105 @@ export default function TermsPage() {
           </h2>
           <ul className="list-disc list-inside mb-6 space-y-2">
             <li>
-              <strong>Cancel 24 hours or more before the session:</strong> you
-              may cancel free of charge and choose either a full refund or a
-              free move to another available time.
+              <strong>Cancel 12 hours or more before the session:</strong> you
+              may cancel free of charge from your account and the payment is
+              refunded to your original payment method.
             </li>
             <li>
-              <strong>Cancel less than 24 hours before the session:</strong> the
-              booking may be cancelled, but the payment is retained as credit
-              towards a future session.
+              <strong>Cancel less than 12 hours before the session:</strong>{" "}
+              the booking may be cancelled, but the payment is retained as
+              credit towards a future session.
             </li>
             <li>
               <strong>Move a session:</strong> you can ask to reschedule at any
               time; the new time is subject to the expert's availability.
             </li>
           </ul>
+          <p className="mb-6">
+            The free-cancellation window shown at checkout (currently 12
+            hours) is the enforced policy. Refunds are issued through the
+            original payment method; depending on your bank, they can take a
+            few business days to appear on your statement.
+          </p>
+        </section>
+        <section className="mb-8">
+          <h2 className="text-2xl font-semibold mb-4">
+            Digital Products (Blueprints, PDFs &amp; Library Content)
+          </h2>
+          <p className="mb-6">
+            Gymholic sells digital products — including downloadable training
+            and business Blueprints (PDF documents), Academy library content,
+            and Academy membership access (together, "Digital Products").
+            This section governs those purchases and applies in addition to
+            the payment terms above.
+          </p>
+          <h3 className="text-xl font-medium mb-3">
+            Delivery &amp; Access
+          </h3>
+          <p className="mb-6">
+            Digital Products are delivered electronically: immediately after
+            your payment is confirmed, the product is unlocked in your
+            Gymholic account under{" "}
+            <strong>Account → Library</strong>, and a receipt is emailed to
+            you. Nothing is shipped physically. You can stream or view your
+            purchased content by signing in; Blueprint PDFs are viewed in the
+            in-app reader.
+          </p>
+          <h3 className="text-xl font-medium mb-3">
+            Licence
+          </h3>
+          <p className="mb-6">
+            On payment, you are granted a personal, non-exclusive,
+            non-transferable licence to use the Digital Product for your own
+            business or personal development. You may not resell, redistribute,
+            share, publicly post, or claim ownership of the content — it
+            remains the intellectual property of Gymholic and its authors.
+            Accounts that redistribute content may lose access without a
+            refund.
+          </p>
+          <h3 className="text-xl font-medium mb-3">
+            Cancellation &amp; Refunds for Digital Products
+          </h3>
+          <p className="mb-6">
+            Digital Products are delivered instantly and cannot be
+            "returned". Consistent with the norm for digital goods:
+          </p>
+          <ul className="list-disc list-inside mb-6 space-y-2">
+            <li>
+              <strong>Before accessing the product:</strong> if you have not
+              yet opened or downloaded the purchase, contact us within 14
+              days for a full refund.
+            </li>
+            <li>
+              <strong>After accessing:</strong> purchases are final and
+              non-refundable, because the content is consumed on delivery.
+              This does not affect your statutory rights.
+            </li>
+            <li>
+              <strong>Faulty or misdescribed content:</strong> if a file is
+              corrupted, incomplete, or materially different from its
+              description, tell us — we will fix it or refund it in full,
+              your choice.
+            </li>
+            <li>
+              <strong>Duplicate or accidental purchases:</strong> contact us
+              within 48 hours and we will refund the duplicate or, with your
+              consent, credit it towards another product.
+            </li>
+            <li>
+              <strong>Academy membership:</strong> cancellations follow the
+              membership terms shown at purchase; access continues until the
+              end of the settled period and the seat refund is reviewed by
+              our team.
+            </li>
+          </ul>
+          <p className="mb-6">
+            By completing a Digital Product purchase you confirm that you
+            accept these Terms, and that you consent to immediate delivery of
+            digital content and acknowledge that, once delivery starts, the
+            cancellation rights described above apply instead of a general
+            right of withdrawal.
+          </p>
         </section>
         <section className="mb-8">
           <h2 className="text-2xl font-semibold mb-4">
@@ -217,7 +302,11 @@ export default function TermsPage() {
                 >accept.paymob.com</a>
             </li>
             <li>
-              <strong>Stripe:</strong> Planned for future payment processing.
+              <strong>Brevo:</strong> For transactional email delivery.
+            </li>
+            <li>
+              <strong>Twilio:</strong> For SMS/WhatsApp booking notifications
+              when enabled.
             </li>
             <li>
               <strong>Google Calendar/Meet:</strong> For calendar connectivity
@@ -225,12 +314,6 @@ export default function TermsPage() {
               <a href="https://policies.google.com/terms"
                 target="_blank" rel="noopener noreferrer"
                 >policies.google.com/terms</a>
-            </li>
-            <li>
-              <strong>Upstash Redis:</strong> For shared data storage.
-            </li>
-            <li>
-              <strong>Resend:</strong> For transactional email.
             </li>
           </ul>
         </section>

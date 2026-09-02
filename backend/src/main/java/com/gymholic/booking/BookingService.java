@@ -57,6 +57,7 @@ public class BookingService {
     private final NotificationService notificationService;
     private final com.gymholic.calendar.ZoomService zoomService;
     private final com.gymholic.payment.RefundRepository refundRepository;
+    private final com.gymholic.payment.RefundService refundService;
 
     /** First configured frontend origin — used for links inside emails. */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
@@ -486,18 +487,24 @@ public class BookingService {
         return mapToDto(saved);
     }
 
-    /** Records the money owed after a client cancels a paid booking. */
+    /** Records the money owed after a client cancels a paid booking — and
+     *  immediately refunds the gateway when automatic processing is on. */
     private void recordRefundDue(Booking booking, String reason) {
         paymentRepository.findByBookingId(booking.getId()).stream()
             .filter(p -> p.getStatus() == PaymentStatus.COMPLETED)
             .max(java.util.Comparator.comparing(Payment::getId))
-            .ifPresent(payment -> refundRepository.save(
-                com.gymholic.payment.entity.Refund.builder()
-                    .payment(payment)
-                    .amount(payment.getAmount())
-                    .reason("Client cancellation (free window) — " + (reason == null || reason.isBlank() ? "no reason given" : reason))
-                    .status(PaymentStatus.PENDING)
-                    .build()));
+            .ifPresent(payment -> {
+                com.gymholic.payment.entity.Refund refund = refundRepository.save(
+                    com.gymholic.payment.entity.Refund.builder()
+                        .payment(payment)
+                        .amount(payment.getAmount())
+                        .reason("Client cancellation (free window) — " + (reason == null || reason.isBlank() ? "no reason given" : reason))
+                        .status(PaymentStatus.PENDING)
+                        .build());
+                // Best effort: on any failure the refund stays PENDING in the
+                // admin queue for manual settlement — cancellation succeeds.
+                refundService.autoProcessAfterCancellation(refund);
+            });
         log.info("Booking {} cancelled by client — refund due recorded", booking.getId());
     }
 

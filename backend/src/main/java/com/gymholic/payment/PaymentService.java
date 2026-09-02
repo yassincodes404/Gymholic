@@ -212,11 +212,20 @@ public class PaymentService {
         Map<String, Object> result = provider.verifyWebhook(payload, hmac);
 
         String orderId = (String) result.get("orderId");
+        String transactionId = (String) result.get("transactionId");
         boolean success = (Boolean) result.get("success");
         boolean pending = (Boolean) result.get("pending");
 
         Payment payment = paymentRepository.findByProviderTransactionId(orderId)
             .orElseThrow(() -> new ResourceNotFoundException("Payment", "orderId", orderId));
+
+        // Remember the gateway's charge id — refunds are issued against it.
+        // Persist even on the idempotent path so older payments backfill.
+        if (transactionId != null && !transactionId.isBlank()
+                && !transactionId.equals(payment.getProviderChargeId())) {
+            payment.setProviderChargeId(transactionId);
+            paymentRepository.save(payment);
+        }
 
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
             // Idempotency: Ignore if already completed
@@ -296,6 +305,13 @@ public class PaymentService {
         if (payment.getStatus() == PaymentStatus.COMPLETED) {
             // Idempotency: ignore if already completed
             return mapToDto(payment);
+        }
+
+        // For the mock provider the transaction id doubles as the charge id,
+        // so the automatic-refund pipeline exercises in dev exactly as with
+        // Paymob in production.
+        if (payment.getProviderChargeId() == null) {
+            payment.setProviderChargeId(payment.getProviderTransactionId());
         }
 
         if (payment.getBooking() != null) {

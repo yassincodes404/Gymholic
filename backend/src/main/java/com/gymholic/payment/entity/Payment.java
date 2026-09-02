@@ -51,6 +51,14 @@ public class Payment {
     @Column(name = "provider_transaction_id")
     private String providerTransactionId;
 
+    /**
+     * The gateway's charge/transaction id, captured from the verified
+     * webhook (Paymob's obj.id) — the id refunds are issued against. The
+     * order id above identifies the payment for dedupe, not for refunds.
+     */
+    @Column(name = "provider_charge_id", length = 100)
+    private String providerChargeId;
+
     @Column(name = "provider_checkout_url")
     private String providerCheckoutUrl;
 

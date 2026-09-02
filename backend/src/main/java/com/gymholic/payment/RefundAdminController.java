@@ -1,6 +1,7 @@
 package com.gymholic.payment;
 
 import com.gymholic.common.enums.PaymentStatus;
+import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
 import com.gymholic.common.response.ApiResponse;
 import com.gymholic.payment.entity.Refund;
@@ -15,9 +16,10 @@ import java.util.Map;
 
 /**
  * Admin → Bookings: the refund queue. A client cancelling inside the free
- * window records a PENDING refund here; the team settles it with the
- * gateway (Paymob dashboard / bank transfer) and marks it done. Money is
- * never moved by this endpoint — it is the paper trail.
+ * window records a PENDING refund here. Settling first tries the automatic
+ * gateway refund (money moves via Paymob); if that isn't possible the team
+ * settles manually (Paymob dashboard / bank transfer) and records it —
+ * the queue is the paper trail either way.
  */
 @RestController
 @RequestMapping("/api/admin/refunds")
@@ -26,6 +28,7 @@ import java.util.Map;
 public class RefundAdminController {
 
     private final RefundRepository refundRepository;
+    private final RefundService refundService;
 
     public record SettleRefundRequest(String providerRefundId) {}
 
@@ -38,19 +41,43 @@ public class RefundAdminController {
         return ApiResponse.success(refunds.stream().map(this::toMap).toList());
     }
 
-    /** Marks a refund as settled with the gateway. */
+    /**
+     * Settles a refund: attempts the automatic gateway refund first. A
+     * manually-typed {@code providerRefundId} records a manual settlement
+     * (dashboard/bank transfer); {@code ?force=true} marks it settled even
+     * when the gateway attempt isn't possible.
+     */
     @PutMapping("/{id}/settle")
     @Transactional
     public ApiResponse<Map<String, Object>> settle(
-            @PathVariable Long id, @RequestBody(required = false) SettleRefundRequest request) {
+            @PathVariable Long id, @RequestBody(required = false) SettleRefundRequest request,
+            @RequestParam(defaultValue = "false") boolean force) {
         Refund refund = refundRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Refund", "id", id));
-        refund.setStatus(PaymentStatus.COMPLETED);
-        if (request != null && request.providerRefundId() != null && !request.providerRefundId().isBlank()) {
-            refund.setProviderRefundId(request.providerRefundId().trim());
+        if (refund.getStatus() == PaymentStatus.COMPLETED) {
+            throw new BadRequestException("This refund is already settled.");
         }
-        refundRepository.save(refund);
-        return ApiResponse.success("Refund marked as settled", toMap(refund));
+
+        // Manual settlement — the admin already moved the money elsewhere.
+        if (request != null && request.providerRefundId() != null && !request.providerRefundId().isBlank()) {
+            refund.setStatus(PaymentStatus.COMPLETED);
+            refund.setProviderRefundId(request.providerRefundId().trim());
+            refundRepository.save(refund);
+            return ApiResponse.success("Refund marked as manually settled", toMap(refund));
+        }
+
+        // Automatic settlement — push it back through the gateway.
+        RefundService.RefundOutcome outcome = refundService.attemptGatewayRefund(refund);
+        if (outcome.processed()) {
+            return ApiResponse.success(outcome.message(), toMap(refund));
+        }
+        if (force) {
+            refund.setStatus(PaymentStatus.COMPLETED);
+            refundRepository.save(refund);
+            return ApiResponse.success("Refund marked as settled without a gateway attempt", toMap(refund));
+        }
+        throw new BadRequestException(
+            outcome.message() + " Pass providerRefundId to record a manual settlement, or retry with &force=true.");
     }
 
     private Map<String, Object> toMap(Refund refund) {

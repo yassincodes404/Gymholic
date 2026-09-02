@@ -44,6 +44,7 @@ public class MockPaymentProvider implements PaymentProvider {
 
     @Override
     public Map<String, String> refund(String transactionId, BigDecimal amount) {
-        throw new UnsupportedOperationException("Mock refunds are not supported.");
+        log.info("[MOCK PAYMENT] refund issued: tx={} amount={}", transactionId, amount);
+        return Map.of("refundId", "mock-refund-" + UUID.randomUUID());
     }
 }

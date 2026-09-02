@@ -43,6 +43,7 @@ public class PaymobProvider implements PaymentProvider {
 
     private static final String PAYMOB_BASE = "https://accept.paymob.com";
     private static final String INTENTION_URL = PAYMOB_BASE + "/v1/intention/";
+    private static final String REFUND_URL = PAYMOB_BASE + "/api/ecommerce/refunds";
 
     /** Frontend origin — base for the webhook + the post-payment redirect. */
     @Value("${app.cors.allowed-origins:https://gymholic.ae}")
@@ -309,7 +310,36 @@ public class PaymobProvider implements PaymentProvider {
 
     @Override
     public Map<String, String> refund(String transactionId, BigDecimal amount) {
-        // TODO: Implement Paymob refund
-        throw new UnsupportedOperationException("Paymob refund not yet implemented");
+        var credentials = requireCredentials();
+        int amountCents = amount.movePointRight(2).intValueExact();
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("transaction_id", transactionId);
+        body.put("amount_cents", amountCents);
+
+        try {
+            log.info("Requesting Paymob refund of {} against transaction {}", amount, transactionId);
+            ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                REFUND_URL, new HttpEntity<>(body, authHeaders(credentials.apiKey())), JsonNode.class);
+            JsonNode root = response.getBody();
+
+            // Paymob answers with a refund transaction object — its "id" is
+            // the refund reference. Anything else is a rejection we surface
+            // so the team settles manually from the dashboard.
+            if (root == null || !root.has("id")) {
+                throw new BadRequestException(
+                    "Paymob rejected the refund: " + (root == null ? "empty response" : root.toString()));
+            }
+            Map<String, String> result = new HashMap<>();
+            result.put("refundId", root.get("id").asText());
+            result.put("pending", root.path("pending").asText("false"));
+            return result;
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Paymob refund failed for transaction {}: {}", transactionId, e.getMessage());
+            throw new BadRequestException(
+                "Automatic refund failed — settle it manually from the Paymob dashboard. (" + rootMessage(e) + ")");
+        }
     }
 }

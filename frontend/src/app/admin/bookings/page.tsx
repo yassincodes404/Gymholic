@@ -120,18 +120,29 @@ export default function AdminBookingsPage() {
   }
 
   // ---- Refund settle action ----
-  async function settleRefund(refund: RefundRow) {
+  // Settling asks the backend to refund through Paymob; if that isn't
+  // possible the admin can record a manual settlement (force).
+  async function settleRefund(refund: RefundRow, force = false) {
     setSettlingId(refund.id);
     setError(null);
     try {
-      await adminFetch(`admin/refunds/${refund.id}/settle`, {
+      await adminFetch(`admin/refunds/${refund.id}/settle${force ? "?force=true" : ""}`, {
         method: "PUT",
         body: JSON.stringify({ providerRefundId: null }),
       });
-      setNotice(`Refund of $${refund.amount} to ${refund.clientName} marked as settled.`);
+      setNotice(
+        force
+          ? `Refund of $${refund.amount} to ${refund.clientName} recorded as manually settled.`
+          : `Refund of $${refund.amount} to ${refund.clientName} sent back through the gateway.`,
+      );
       await loadRefunds();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not settle the refund.");
+      const message = e instanceof Error ? e.message : "Could not settle the refund.";
+      if (!force && window.confirm(`${message}\n\nMark it as settled anyway (you moved the money manually)?`)) {
+        setSettlingId(null);
+        return settleRefund(refund, true);
+      }
+      setError(message);
     } finally {
       setSettlingId(null);
     }
@@ -204,9 +215,9 @@ export default function AdminBookingsPage() {
                   <button
                     onClick={() => settleRefund(r)}
                     disabled={settlingId === r.id}
-                    className="admin-btn admin-btn-ghost !px-3 !py-1.5 !text-xs"
+                    className="admin-btn admin-btn-primary !px-3 !py-1.5 !text-xs"
                   >
-                    {settlingId === r.id ? "Saving…" : "Mark settled"}
+                    {settlingId === r.id ? "Refunding…" : "Refund via Paymob"}
                   </button>
                 ) : (
                   <span className="text-[10px] uppercase tracking-wider bg-emerald-500/15 text-emerald-400 px-2 py-1 rounded-full">
@@ -217,8 +228,10 @@ export default function AdminBookingsPage() {
             ))}
           </ul>
           <p className="text-xs text-paper/40 mt-3">
-            Settle with the client&apos;s original payment method (Paymob dashboard or bank
-            transfer), then mark it done — this is the paper trail, not the money movement.
+            Settling pushes the refund back through Paymob automatically. If
+            the gateway attempt isn&apos;t possible (older payments, network
+            failure), move the money from the Paymob dashboard or by bank
+            transfer, then settle with force to record it.
           </p>
         </div>
       )}

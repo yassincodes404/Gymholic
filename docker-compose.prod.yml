@@ -29,6 +29,45 @@ services:
       retries: 5
       start_period: 30s
 
+  # ---- Nightly database backups ----
+  # pg_dump (custom format) right after deploy, then once a day; keeps the
+  # newest 14 dumps in ./backups on the host. Copy them OFF the VPS
+  # regularly (rsync/B2/S3) — a backup on the same disk as the database is
+  # not a backup. Restore: see docs/db-backup-restore.md.
+  db-backup:
+    image: postgres:16-alpine
+    container_name: gymholic-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_KEEP: "14"
+    volumes:
+      - ./backups:/backups
+    networks:
+      - gymholic-net
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        dump() {
+          ts="$$(date -u +%Y%m%d-%H%M%S)"
+          echo "[backup] dumping $${PGDATABASE} -> /backups/gymholic-$${ts}.dump"
+          pg_dump -Fc -f "/backups/gymholic-$${ts}.dump" && echo "[backup] done"
+          ls -1t /backups/gymholic-*.dump 2>/dev/null | tail -n +$$((BACKUP_KEEP + 1)) | xargs -r rm -f
+        }
+        # First dump ~1 min after boot (protects immediately post-deploy),
+        # then every 24h.
+        sleep 60 && dump
+        while true; do sleep 86400; dump; done
+
   # ---- Redis ----
   redis:
     image: redis:7-alpine

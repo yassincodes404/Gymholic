@@ -37,7 +37,8 @@ export function TermsAcceptance({
           <Link href="/privacy" target="_blank" className="underline hover:no-underline">
             Privacy Policy
           </Link>
-          , including the payment, cancellation and missed-session policies.
+          , including the payment, cancellation, missed-session and
+          digital-products policies.
         </span>
       </label>
       {error && (
