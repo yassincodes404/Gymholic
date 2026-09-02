@@ -872,6 +872,7 @@ function MembershipTab({ email }: { email?: string }) {
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [price, setPrice] = useState<number | null>(null);
   const [cancellable, setCancellable] = useState(true);
+  const [salesPaused, setSalesPaused] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -901,6 +902,9 @@ function MembershipTab({ email }: { email?: string }) {
       }
       if (typeof pricing.academyMembershipCancellable === "boolean") {
         setCancellable(pricing.academyMembershipCancellable);
+      }
+      if (typeof pricing.academyPrePurchaseEnabled === "boolean") {
+        setSalesPaused(!pricing.academyPrePurchaseEnabled);
       }
     });
   }, []);
@@ -984,6 +988,11 @@ function MembershipTab({ email }: { email?: string }) {
           </div>
 
           <div className="mt-6 pt-6 space-y-4" style={{ borderTop: "1px solid rgba(245,241,232,0.1)" }}>
+            {salesPaused && (
+              <p className="text-xs font-medium px-3 py-2 rounded-lg inline-block" style={{ background: "rgba(255,106,0,0.08)", color: "var(--orange)" }}>
+                Pre-launch: new membership sales are paused — your founding seat and price are locked in.
+              </p>
+            )}
             <p className="text-sm text-paper/70">
               Your seat is permanent: every lesson, PDF and framework lands in your account
               the day the Academy opens, and you&apos;re emailed at launch. Membership
