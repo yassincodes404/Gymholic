@@ -31,8 +31,14 @@ app:
     client-id: ${ZOOM_CLIENT_ID:}
     client-secret: ${ZOOM_CLIENT_SECRET:}
   mail:
-    from: ${MAIL_FROM:noreply@gymholic.com}
+    # Must be a sender validated in Brevo (Senders & IP / Domains) or Brevo
+    # silently rewrites the address to the account owner's on its own
+    # subdomain (e.g. you@11914894.brevosend.com).
+    from: ${MAIL_FROM:noreply@gymholic.ae}
     from-name: ${MAIL_FROM_NAME:Gymholic}
+    # Where client replies land (shown as the Reply-To header). Point this
+    # at a monitored inbox; empty = same as the from address.
+    reply-to: ${MAIL_REPLY_TO:}
   brevo:
     api-key: ${BREVO_API_KEY:}
     sender-email: ${BREVO_SENDER_EMAIL:}

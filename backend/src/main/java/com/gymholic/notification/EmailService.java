@@ -45,11 +45,15 @@ public class EmailService {
     private final TemplateEngine templateEngine;
     private final BrevoConfigService brevoConfigService;
 
-    @Value("${app.mail.from:noreply@gymholic.com}")
+    @Value("${app.mail.from:noreply@gymholic.ae}")
     private String fromAddress;
 
     @Value("${app.mail.from-name:Gymholic}")
     private String fromName;
+
+    /** Replies land here (a monitored inbox) rather than the send-only from. */
+    @Value("${app.mail.reply-to:}")
+    private String replyToAddress;
 
     /** Fire-and-forget send used for notifications — never throws. */
     @Async
@@ -101,6 +105,11 @@ public class EmailService {
         body.put("sender", Map.of(
             "name", creds.senderName() != null ? creds.senderName() : fromName,
             "email", creds.senderEmail()));
+        if (replyToAddress != null && !replyToAddress.isBlank()) {
+            body.put("replyTo", Map.of(
+                "name", creds.senderName() != null ? creds.senderName() : fromName,
+                "email", replyToAddress));
+        }
         body.put("to", List.of(Map.of("email", to)));
         body.put("subject", subject);
         body.put("htmlContent", htmlContent);
@@ -136,6 +145,9 @@ public class EmailService {
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setFrom(fromAddress, fromName);
         helper.setTo(to);
+        if (replyToAddress != null && !replyToAddress.isBlank()) {
+            helper.setReplyTo(replyToAddress);
+        }
         helper.setSubject(subject);
         helper.setText(htmlContent, true);
         if (attachments != null) {

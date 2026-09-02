@@ -168,11 +168,21 @@ public class PaymentService {
             booking.getClient().getEmail(),
             booking.getClient().getFirstName(),
             booking.getTrainer().getFirstName(),
-            booking.getStartTime().toString(),
+            clientDisplayTime(booking),
             saved.getProviderCheckoutUrl()
         );
 
         return mapToDto(saved);
+    }
+
+    /** The booking time in the client's timezone — raw ISO stamps never belong in a client email. */
+    private String clientDisplayTime(Booking booking) {
+        try {
+            return com.gymholic.common.util.DateTimeUtils.formatForDisplay(
+                booking.getStartTime(), java.time.ZoneId.of(booking.getClientTimezone()));
+        } catch (Exception e) {
+            return com.gymholic.common.util.DateTimeUtils.formatForDisplay(booking.getStartTime());
+        }
     }
 
     private static String nullSafe(String value, String fallback) {
