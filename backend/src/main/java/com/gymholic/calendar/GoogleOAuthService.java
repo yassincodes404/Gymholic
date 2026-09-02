@@ -125,8 +125,9 @@ public class GoogleOAuthService {
 
             log.info("Successfully received refresh token for user {}", userId);
 
-            // Fetch the connected account's real email from Google's userinfo endpoint.
-            String googleEmail = fetchGoogleEmail(response.getAccessToken());
+            // Fetch the connected account's identity (id + email) from
+            // Google's userinfo endpoint with the just-issued access token.
+            GoogleAccountInfo googleAccount = fetchGoogleAccount(response.getAccessToken());
 
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -136,9 +137,10 @@ public class GoogleOAuthService {
             GoogleConnection connection = connectionRepository.findByUserId(userId)
                     .orElse(GoogleConnection.builder().user(user).build());
 
-            connection.setGoogleEmail(googleEmail);
+            connection.setGoogleEmail(googleAccount.email());
+            connection.setGoogleId(googleAccount.sub());
             connection.setEncryptedRefreshToken(encryptedRefreshToken);
-            
+
             connectionRepository.save(connection);
 
             log.info("Google Calendar connection saved successfully for user {}", userId);
@@ -161,11 +163,16 @@ public class GoogleOAuthService {
         }
     }
 
+    /** The connected Google account's id ("sub") and email. */
+    private record GoogleAccountInfo(String sub, String email) {
+        static final GoogleAccountInfo UNKNOWN = new GoogleAccountInfo(null, "connected-google-account");
+    }
+
     /**
-     * Looks up the Google account's email with the just-issued access token.
+     * Looks up the Google account's identity with the just-issued access token.
      * Never fails the connection — falls back to a placeholder if the call fails.
      */
-    private String fetchGoogleEmail(String accessToken) {
+    private GoogleAccountInfo fetchGoogleAccount(String accessToken) {
         try {
             org.springframework.web.client.RestTemplate rest = new org.springframework.web.client.RestTemplate();
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
@@ -177,13 +184,15 @@ public class GoogleOAuthService {
                 String.class
             );
             com.google.gson.JsonObject json = com.google.gson.JsonParser.parseString(response.getBody()).getAsJsonObject();
-            if (json.has("email") && !json.get("email").isJsonNull()) {
-                return json.get("email").getAsString();
-            }
+            String email = json.has("email") && !json.get("email").isJsonNull()
+                ? json.get("email").getAsString() : GoogleAccountInfo.UNKNOWN.email();
+            String sub = json.has("id") && !json.get("id").isJsonNull()
+                ? json.get("id").getAsString() : null;
+            return new GoogleAccountInfo(sub, email);
         } catch (Exception e) {
-            log.warn("Could not fetch Google account email: {}", e.getMessage());
+            log.warn("Could not fetch Google account identity: {}", e.getMessage());
+            return GoogleAccountInfo.UNKNOWN;
         }
-        return "connected-google-account";
     }
 
     @Transactional(readOnly = true)

@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface GoogleConnectionRepository extends JpaRepository<GoogleConnection, Long> {
     Optional<GoogleConnection> findByUserId(Long userId);
     void deleteByUserId(Long userId);
+    Optional<GoogleConnection> findByGoogleId(String googleId);
 }

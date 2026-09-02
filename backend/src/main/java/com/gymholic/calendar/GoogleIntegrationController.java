@@ -19,6 +19,7 @@ import java.util.Map;
 public class GoogleIntegrationController {
 
     private final GoogleOAuthService oAuthService;
+    private final GoogleSecurityEventService securityEventService;
     private final UserRepository userRepository;
 
     private Long getCurrentUserId() {
@@ -58,6 +59,20 @@ public class GoogleIntegrationController {
                 .header("Location", redirectBase + "?google=error&message=" + message)
                 .build();
         }
+    }
+
+    /**
+     * Cross-Account Protection (RISC) receiver — Google pushes signed
+     * security-event tokens here (endpoint registered in the Cloud console).
+     * 202 = authentic token accepted; 400 = failed verification, so Google
+     * retries and flags the delivery.
+     */
+    @PostMapping(value = "/risc", consumes = {"application/jwt", "text/plain", "application/*+jwt", "*/*"})
+    public ResponseEntity<Void> securityEvent(@RequestBody(required = false) String setToken) {
+        if (securityEventService.handleSecurityEventToken(setToken)) {
+            return ResponseEntity.accepted().build();
+        }
+        return ResponseEntity.badRequest().build();
     }
 
     @GetMapping("/status")

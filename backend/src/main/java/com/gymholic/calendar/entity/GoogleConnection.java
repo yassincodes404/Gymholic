@@ -28,6 +28,11 @@ public class GoogleConnection {
     @Column(name = "google_email", nullable = false)
     private String googleEmail;
 
+    /** The connected Google account's id ("sub") — how Cross-Account
+     *  Protection security events are mapped back to this connection. */
+    @Column(name = "google_id", length = 64)
+    private String googleId;
+
     @Column(name = "encrypted_refresh_token", nullable = false, length = 500)
     private String encryptedRefreshToken;
 

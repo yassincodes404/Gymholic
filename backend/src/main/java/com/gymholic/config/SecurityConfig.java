@@ -63,6 +63,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/payments/webhook/**").permitAll()
                 .requestMatchers("/api/payments/active-provider").permitAll()
                 .requestMatchers("/api/integrations/google/callback").permitAll()
+                .requestMatchers("/api/integrations/google/risc").permitAll() // Cross-Account Protection push (JWT-verified)
                 .requestMatchers(HttpMethod.POST, "/api/whitelist").permitAll() // Join waitlist (guest-friendly)
                 .requestMatchers(HttpMethod.GET, "/api/settings/pricing").permitAll() // Public booking prices
                 .requestMatchers("/api/bookings/reschedule/**").permitAll() // One-time no-show reschedule links (token-protected)
