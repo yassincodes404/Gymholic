@@ -153,6 +153,22 @@ public class OrderService {
                 unitPrice = storeProduct.isFree() ? BigDecimal.ZERO : storeProduct.getPrice();
                 currency = storeProduct.getCurrency();
                 productType = "BLUEPRINT";
+            } else if ("ACADEMY".equalsIgnoreCase(productType)) {
+                // Academy membership is priced server-side from settings —
+                // the client-sent price is never trusted (a tampered cart
+                // once could have bought membership for a penny).
+                if (!settingsService.getBool("ACADEMY_PRE_PURCHASE_ENABLED", false)) {
+                    throw new BadRequestException("Academy membership is not available right now.");
+                }
+                title = "Gymholic Academy Membership";
+                unitPrice = new BigDecimal(settingsService.getString(
+                    "ACADEMY_MEMBERSHIP_PRICE", "29"));
+                productType = "ACADEMY";
+            } else {
+                // Anything that is neither a store product nor the Academy
+                // membership has no server-side price — refuse it outright.
+                throw new BadRequestException(
+                    "'" + title + "' is not available for purchase. Remove it from your cart to continue.");
             }
             total = total.add(unitPrice);
             items.add(orderItemRepository.save(OrderItem.builder()

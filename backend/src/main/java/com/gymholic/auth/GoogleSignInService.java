@@ -54,6 +54,19 @@ public class GoogleSignInService {
             Payload payload = token.getPayload();
             String googleId = payload.getSubject();
             String email = payload.getEmail();
+
+            // Only verified Google emails may sign in, link accounts or hit
+            // the admin bootstrap list — Google passes email_verified=false
+            // for accounts where the address was never confirmed, and a
+            // forged/unconfirmed address must never inherit an existing
+            // account or an admin seat.
+            Boolean emailVerified = payload.getEmailVerified();
+            if (emailVerified == null || !emailVerified) {
+                log.warn("Google sign-in rejected: unverified email for googleId {}", googleId);
+                throw new BadRequestException(
+                    "Your Google account's email address is not verified. Verify it with Google and try again.");
+            }
+
             String firstNameRaw = (String) payload.get("given_name");
             String lastNameRaw = (String) payload.get("family_name");
             

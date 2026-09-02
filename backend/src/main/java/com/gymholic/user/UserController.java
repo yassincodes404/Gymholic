@@ -108,10 +108,15 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Account deleted", null));
     }
 
+    /** Self or admin only — profiles carry PII (email, phone), never public. */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UserDto>> getUserById(@PathVariable Long id) {
-        UserDto user = userService.getUserById(id);
-        return ResponseEntity.ok(ApiResponse.success(user));
+        String caller = SecurityUtils.getCurrentUserEmail();
+        boolean self = caller != null && userService.getUserById(id).getEmail().equalsIgnoreCase(caller);
+        if (!self && !SecurityUtils.hasRole("ADMIN")) {
+            throw new com.gymholic.common.exception.ResourceNotFoundException("User", "id", id);
+        }
+        return ResponseEntity.ok(ApiResponse.success(userService.getUserById(id)));
     }
 
     @GetMapping

@@ -93,6 +93,11 @@ public class AuthService {
         String userEmail = jwtService.extractUsername(refreshToken);
         UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
+        if (!userDetails.isEnabled()) {
+            // A deactivated account cannot mint new access tokens.
+            throw new BadRequestException("This account has been deactivated.");
+        }
+
         if (!jwtService.isTokenValid(refreshToken, userDetails)) {
             throw new BadRequestException("Invalid refresh token");
         }

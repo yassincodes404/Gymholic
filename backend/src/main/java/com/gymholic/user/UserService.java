@@ -120,7 +120,7 @@ public class UserService {
             user.setPhone(request.getPhone());
         }
         if (request.getProfileImageUrl() != null) {
-            user.setProfileImageUrl(request.getProfileImageUrl());
+            user.setProfileImageUrl(sanitizeProfileImageUrl(request.getProfileImageUrl()));
         }
         if (request.getBio() != null) {
             user.setBio(request.getBio());
@@ -150,5 +150,20 @@ public class UserService {
             .active(user.isActive())
             .createdAt(user.getCreatedAt())
             .build();
+    }
+
+    /**
+     * Profile picture URLs are rendered in <img> tags across the app — only
+     * same-site relative paths or HTTPS images are accepted, blocking
+     * javascript:/data: injection through the profile update endpoint.
+     */
+    private String sanitizeProfileImageUrl(String url) {
+        String trimmed = url.trim();
+        boolean allowed = trimmed.startsWith("/") && !trimmed.startsWith("//")
+            || trimmed.toLowerCase().startsWith("https://");
+        if (!allowed) {
+            throw new BadRequestException("Profile picture URL must be a same-site path or an https:// image.");
+        }
+        return trimmed;
     }
 }

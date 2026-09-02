@@ -52,3 +52,7 @@ management:
 
 server:
   forward-headers-strategy: framework
+  error:
+    # Never echo internal exception text to clients.
+    include-message: never
+    include-stacktrace: never

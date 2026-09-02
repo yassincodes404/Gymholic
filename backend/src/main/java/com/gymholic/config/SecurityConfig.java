@@ -58,7 +58,8 @@ public class SecurityConfig {
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/admin/auth/**").permitAll() // Admin login is public
-                .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/actuator/health").permitAll() // Docker/deploy healthchecks
+                .requestMatchers("/actuator/**").hasRole("ADMIN") // metrics & info stay private
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/payments/webhook/**").permitAll()
                 .requestMatchers("/api/payments/active-provider").permitAll()

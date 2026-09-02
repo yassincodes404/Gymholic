@@ -19,6 +19,16 @@ function backendUrl() {
 
 export async function POST(req: NextRequest) {
   const accessKey = process.env.ADMIN_ACCESS_KEY;
+  // The knock-gate cookie (set httpOnly by the proxy when the admin URL is
+  // visited with the right access key) is required here too — without this
+  // check anyone could POST credentials straight through this route and
+  // use the server's secret header, defeating the 404 cloak entirely.
+  if (req.cookies.get("gh_admin_gate")?.value !== "1") {
+    return NextResponse.json(
+      { success: false, message: "Not found" },
+      { status: 404 },
+    );
+  }
   if (!accessKey) {
     return NextResponse.json(
       { success: false, message: "Admin access is not configured on this server." },

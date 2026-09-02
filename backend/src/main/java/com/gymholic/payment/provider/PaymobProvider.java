@@ -218,7 +218,7 @@ public class PaymobProvider implements PaymentProvider {
             String calculatedHmac = calculateHmac(obj);
 
             if (!calculatedHmac.equalsIgnoreCase(signature)) {
-                log.warn("HMAC verification failed. Expected: {}, Got: {}", calculatedHmac, signature);
+                log.warn("Paymob webhook HMAC verification failed (mismatch) — payload rejected");
                 throw new BadRequestException("Invalid HMAC signature");
             }
 

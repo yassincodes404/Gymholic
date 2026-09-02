@@ -98,6 +98,11 @@ public class PaymentService {
     }
 
     private PaymentProvider resolveProvider(String name) {
+        // Only implemented providers are selectable — "stripe" is a stub and
+        // would 500 mid-checkout.
+        if ("stripe".equalsIgnoreCase(name)) {
+            throw new BadRequestException("Stripe is not available yet — use Paymob.");
+        }
         PaymentProvider provider = paymentProviders.stream()
             .filter(p -> p.getProviderName().equals(name))
             .findFirst()
@@ -193,15 +198,38 @@ public class PaymentService {
     public PaymentDto getPaymentById(Long id) {
         Payment payment = paymentRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Payment", "id", id));
+        assertCanView(payment);
         return mapToDto(payment);
     }
 
     @Transactional(readOnly = true)
     public List<PaymentDto> getPaymentsByBooking(Long bookingId) {
-        return paymentRepository.findByBookingId(bookingId)
+        List<PaymentDto> payments = paymentRepository.findByBookingId(bookingId)
             .stream()
             .map(this::mapToDto)
             .toList();
+        if (!payments.isEmpty()) {
+            // Ownership gate: the caller must own the booking (or be admin).
+            assertCanView(paymentRepository.findByBookingId(bookingId).get(0));
+        }
+        return payments;
+    }
+
+    /** A payment is visible to its owner (booking client or order buyer) and to admins — nobody else. */
+    private void assertCanView(Payment payment) {
+        if (com.gymholic.security.SecurityUtils.hasRole("ADMIN")) {
+            return;
+        }
+        String caller = com.gymholic.security.SecurityUtils.getCurrentUserEmail();
+        String owner = null;
+        if (payment.getBooking() != null && payment.getBooking().getClient() != null) {
+            owner = payment.getBooking().getClient().getEmail();
+        } else if (payment.getOrder() != null && payment.getOrder().getUser() != null) {
+            owner = payment.getOrder().getUser().getEmail();
+        }
+        if (caller == null || owner == null || !owner.equalsIgnoreCase(caller)) {
+            throw new ResourceNotFoundException("Payment", "id", payment.getId());
+        }
     }
 
     /**

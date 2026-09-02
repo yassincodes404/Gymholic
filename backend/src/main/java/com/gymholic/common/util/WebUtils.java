@@ -18,7 +18,12 @@ public final class WebUtils {
         return null;
     }
 
-    /** First hop of X-Forwarded-For (set by Traefik), else the socket address. */
+    /**
+     * Right-most hop of X-Forwarded-For, else the socket address. Traefik
+     * APPENDS the real client IP to any XFF the client sent, so the first
+     * entry is attacker-controlled (rotating it defeated per-IP rate
+     * limits); only the last entry is set by our own proxy and trusted.
+     */
     public static String clientIp() {
         HttpServletRequest request = currentRequest();
         if (request == null) {
@@ -26,7 +31,8 @@ public final class WebUtils {
         }
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+            String[] hops = forwarded.split(",");
+            return hops[hops.length - 1].trim();
         }
         return request.getRemoteAddr();
     }

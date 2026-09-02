@@ -1,5 +1,6 @@
 package com.gymholic.order;
 
+import com.gymholic.common.exception.ResourceNotFoundException;
 import com.gymholic.common.response.ApiResponse;
 import com.gymholic.order.dto.OrderCheckoutDto;
 import com.gymholic.order.dto.OrderDto;
@@ -7,6 +8,7 @@ import com.gymholic.payment.PaymentService;
 import com.gymholic.payment.dto.PaymentDto;
 import com.gymholic.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,9 +23,17 @@ public class OrderController {
     private final OrderService orderService;
     private final PaymentService paymentService;
 
+    /** Mock checkout is a dev-only convenience — it completes an order
+     *  without money moving, so it must never answer in production. */
+    @Value("${app.payments.mock-enabled:false}")
+    private boolean mockCheckoutEnabled;
+
     /** Checks out the signed-in user's cart into a paid order (test payment mode). */
     @PostMapping
     public ResponseEntity<ApiResponse<OrderDto>> checkout() {
+        if (!mockCheckoutEnabled) {
+            throw new ResourceNotFoundException("Endpoint", "path", "/api/orders");
+        }
         OrderDto order = orderService.checkout(requireEmail());
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success("Order completed", order));
