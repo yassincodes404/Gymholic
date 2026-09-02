@@ -335,6 +335,15 @@ export default function BookPage() {
       if (!bookingId) {
         throw new BookingFlowError("The backend rejected this booking.", false);
       }
+      // Zero-priced services come back already confirmed (no payment, no
+      // approval wait) — show the confirmation immediately.
+      if (created?.status === "CONFIRMED") {
+        setBookingRef(String(bookingId));
+        setConfirmedMeetLink(created.meetLink ?? null);
+        setConfirmedStatus("CONFIRMED");
+        setStep("confirmation");
+        return;
+      }
       router.push(
         `/pay?booking=${bookingId}&amount=${service.price}` +
         `&currency=${encodeURIComponent(service.currency)}` +
@@ -452,11 +461,18 @@ export default function BookPage() {
                 style={{ background: "var(--surface)", border: "1px solid rgba(245,241,232,0.1)" }}
               >
                 <TotalRow amount={service.price} currency={service.currency} />
-                <p className="text-sm opacity-70 mb-6">
-                  Continue to Gymholic Pay — a secure, dedicated payment page. Your booking is
-                  confirmed automatically once the payment succeeds; the Google Meet invitation
-                  and receipt are emailed to you right after.
-                </p>
+                {service.price > 0 ? (
+                  <p className="text-sm opacity-70 mb-6">
+                    Continue to Gymholic Pay — a secure, dedicated payment page. Your booking is
+                    confirmed automatically once the payment succeeds; the Google Meet invitation
+                    and receipt are emailed to you right after.
+                  </p>
+                ) : (
+                  <p className="text-sm opacity-70 mb-6">
+                    This session is free — your booking is confirmed instantly and the Google
+                    Meet invitation is emailed to you right away.
+                  </p>
+                )}
                 {bookingError && (
                   <p className="text-sm mb-4" style={{ color: "var(--orange)" }} role="alert">
                     {bookingError}
@@ -468,11 +484,17 @@ export default function BookPage() {
                   disabled={paying}
                   className="btn-pill w-full justify-center disabled:opacity-50"
                 >
-                  {paying ? "Reserving your slot…" : "Proceed to Secure Payment \u2192"}
+                  {paying
+                    ? "Reserving your slot…"
+                    : service.price > 0
+                      ? "Proceed to Secure Payment \u2192"
+                      : "Confirm Booking \u2192"}
                 </button>
-                <p className="text-xs opacity-40 mt-4 text-center">
-                  You&apos;ll pay on a separate secure page — cards are handled by our payment gateway.
-                </p>
+                {service.price > 0 && (
+                  <p className="text-xs opacity-40 mt-4 text-center">
+                    You&apos;ll pay on a separate secure page — cards are handled by our payment gateway.
+                  </p>
+                )}
               </div>
               <BookingSummary service={service} date={date} time={time} />
             </div>

@@ -221,6 +221,13 @@ public class BookingService {
             price[0], price[1]
         );
 
+        // A zero-priced service needs no money and no approval: confirm it
+        // right away (Meet link, calendar event, confirmation email) so the
+        // client gets the slot instantly instead of waiting on anyone.
+        if (new java.math.BigDecimal(price[0]).signum() <= 0) {
+            return confirmBooking(saved.getId());
+        }
+
         return mapToDto(saved);
     }
 
