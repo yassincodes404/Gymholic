@@ -74,6 +74,20 @@ class EmailTemplatesRenderTest {
     }
 
     @Test
+    void academyLaunchIsBrandedForBothVariants() {
+        Map<String, Object> waitlistVars = Map.of(
+            "name", "Yassin",
+            "earlyAccess", false);
+        assertBranded("academy-launch", waitlistVars);
+        String early = templateEngine.process("academy-launch", ctx(Map.of(
+            "name", "Yassin",
+            "earlyAccess", true)));
+        assertThat(early).contains("pre-purchased early access");
+        String waitlist = templateEngine.process("academy-launch", ctx(waitlistVars));
+        assertThat(waitlist).contains("joined the waitlist");
+    }
+
+    @Test
     void verificationCodeIsBranded() {
         assertBranded("email-verification-code", Map.of(
             "name", "Yassin",

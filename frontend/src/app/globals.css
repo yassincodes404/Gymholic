@@ -699,6 +699,64 @@ h3,
   background: rgba(255, 106, 0, 0.14);
 }
 
+/* ---- Brand scrollbar — thin ember on void ----
+   Firefox: scrollbar-color inherits from html; WebKit gets the full
+   treatment. The ember thumb reads on both the dark base and the cream
+   light sections, so one palette serves the whole site. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 106, 0, 0.55) rgba(245, 241, 232, 0.05);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(245, 241, 232, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 106, 0, 0.5);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 106, 0, 0.85);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ---- Brand cursor — paper arrow, ember pointer ----
+   SVG data-URI cursors keep native OS behaviour (snapping, hotspots,
+   accessibility) while wearing the palette: cream fill with a black
+   outline for the everyday arrow, solid ember for anything clickable.
+   Gated to fine pointers — touch devices never see a cursor anyway. */
+@media (pointer: fine) {
+  body {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cpath d='M3 1.5 L3 19 L7.6 15.2 L10.2 21 L13.3 19.6 L10.7 13.9 L16.5 13.4 Z' fill='%23f5f1e8' stroke='%230a0a0a' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E")
+      2 2,
+      auto;
+  }
+
+  a,
+  button,
+  [role='button'],
+  select,
+  label,
+  summary {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 22 22'%3E%3Cpath d='M3 1.5 L3 19 L7.6 15.2 L10.2 21 L13.3 19.6 L10.7 13.9 L16.5 13.4 Z' fill='%23ff6a00' stroke='%230a0a0a' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E")
+      2 2,
+      pointer;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marquee-row {
     animation: none;

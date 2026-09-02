@@ -19,7 +19,9 @@ export function AcademyMembership() {
   const router = useRouter();
   const { addProduct, open, isInCart } = useCart();
   const [price, setPrice] = useState(ACADEMY_MEMBERSHIP_FALLBACK_PRICE);
-  const [enabled, setEnabled] = useState(true);
+  // Pre-purchase stays closed until the pricing endpoint confirms it's on —
+  // membership is waitlist-only until launch day.
+  const [enabled, setEnabled] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {

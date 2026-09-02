@@ -372,4 +372,20 @@ public class NotificationService {
                 "itemsList", itemsList
             ));
     }
+
+    /**
+     * Academy launch announcement — one email per whitelist member, queued
+     * from the admin action. Pre-purchasers get the "your seat is ready"
+     * variant; waitlist signups get the join-now pitch.
+     */
+    public void sendAcademyLaunch(String toEmail, String name, boolean earlyAccess) {
+        emailService.sendEmail(
+            toEmail,
+            "The Gymholic Academy is live — claim your seat",
+            "academy-launch",
+            Map.of(
+                "name", name != null && !name.isBlank() ? name : "there",
+                "earlyAccess", earlyAccess
+            ));
+    }
 }

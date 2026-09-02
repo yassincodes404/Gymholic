@@ -40,7 +40,9 @@ public class SettingsController {
         pricing.put("openSession", parse(all.get("BOOKING_PRICE_OPEN_SESSION"), 150));
         pricing.put("freeSessionPrice", parse(all.get("BOOKING_PRICE_FREE_SESSION"), 300));
         pricing.put("academyMembershipPrice", parse(all.get("ACADEMY_MEMBERSHIP_PRICE"), 29));
-        pricing.put("academyPrePurchaseEnabled", settingsService.getBool("ACADEMY_PRE_PURCHASE_ENABLED", true));
+        // Off until launch — the Academy stays waitlist-only (V35 flips the
+        // stored setting too; the default keeps fresh installs consistent).
+        pricing.put("academyPrePurchaseEnabled", settingsService.getBool("ACADEMY_PRE_PURCHASE_ENABLED", false));
         pricing.put("academyMembershipCancellable", settingsService.getBool("ACADEMY_MEMBERSHIP_CANCELLABLE", true));
         // What the gateway actually collects (Egypt configuration): the
         // local Paymob currency (e.g. "EGP", blank = USD) and the EGP/USD

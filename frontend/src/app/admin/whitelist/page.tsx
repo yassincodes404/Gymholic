@@ -27,6 +27,8 @@ const SOURCE_STYLES: Record<string, string> = {
 export default function AdminWhitelistPage() {
   const [entries, setEntries] = useState<WhitelistEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [notifyBusy, setNotifyBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -43,6 +45,32 @@ export default function AdminWhitelistPage() {
   useEffect(() => {
     load();
   }, []);
+
+  async function notifyWhitelist(force: boolean) {
+    const pending = entries.filter((e) => force || !e.notified).length;
+    const label = force
+      ? `Re-send the launch announcement to ALL ${entries.length} people on the whitelist?`
+      : `Email the Academy launch announcement to ${pending} people on the whitelist?`;
+    if (!window.confirm(label)) return;
+    setNotifyBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await adminFetch<{ queued: number; alreadyNotified: number; total: number }>(
+        `whitelist/notify${force ? "?force=true" : ""}`,
+        { method: "POST" },
+      );
+      setNotice(
+        `Launch announcement queued for ${res?.queued ?? 0} member(s)` +
+          (res?.alreadyNotified ? ` — ${res.alreadyNotified} were already notified (skipped).` : "."),
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not queue the launch emails.");
+    } finally {
+      setNotifyBusy(false);
+    }
+  }
 
   async function remove(id: number) {
     setError(null);
@@ -63,9 +91,21 @@ export default function AdminWhitelistPage() {
             People to notify when Academy and upcoming features launch.
           </p>
         </div>
-        <span className="text-sm text-paper/60">{entries.length} signups</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-paper/60">{entries.length} signups</span>
+          <button
+            onClick={() => notifyWhitelist(false)}
+            disabled={notifyBusy || loading || entries.length === 0}
+            className="admin-btn admin-btn-primary disabled:opacity-50"
+          >
+            {notifyBusy ? "Queuing…" : "Notify launch"}
+          </button>
+        </div>
       </div>
 
+      {notice && (
+        <div className="mb-6 bg-emerald-950/50 border border-emerald-800 text-emerald-300 rounded-lg p-4">{notice}</div>
+      )}
       {error && (
         <div className="mb-6 bg-red-950/50 border border-red-800 text-red-300 rounded-lg p-4">{error}</div>
       )}
@@ -84,6 +124,7 @@ export default function AdminWhitelistPage() {
                 <th className="text-left px-5 py-3">Name</th>
                 <th className="text-left px-5 py-3">Email</th>
                 <th className="text-left px-5 py-3">Source</th>
+                <th className="text-left px-5 py-3">Notified</th>
                 <th className="text-left px-5 py-3">Signed Up</th>
                 <th className="text-right px-5 py-3">Actions</th>
               </tr>
@@ -98,10 +139,29 @@ export default function AdminWhitelistPage() {
                       {entry.source}
                     </span>
                   </td>
+                  <td className="px-5 py-3">
+                    {entry.notified ? (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400">
+                        Emailed
+                      </span>
+                    ) : (
+                      <span className="text-xs text-paper/40">—</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3 text-paper/60 text-xs">
                     {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—"}
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    {entry.notified && (
+                      <button
+                        onClick={() => notifyWhitelist(true)}
+                        disabled={notifyBusy}
+                        className="text-paper/60 text-xs border border-paper/15 rounded px-2 py-1 hover:bg-paper/5 mr-2 disabled:opacity-50"
+                        title="Re-send the launch email to everyone, including those already notified"
+                      >
+                        Force re-send
+                      </button>
+                    )}
                     <button onClick={() => remove(entry.id)}
                       className="text-red-400 text-xs border border-red-900 rounded px-2 py-1 hover:bg-red-950/50">
                       Remove
