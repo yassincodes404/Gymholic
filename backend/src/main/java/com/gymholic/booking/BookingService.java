@@ -448,19 +448,21 @@ public class BookingService {
             throw new BadRequestException("Only pending or confirmed bookings can be cancelled");
         }
 
-        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+        boolean paid = booking.getStatus() == BookingStatus.CONFIRMED;
+        if (paid) {
             // Paid booking: the client decides, never the team.
             if (!current.getId().equals(booking.getClient().getId())) {
                 throw new BadRequestException(
                     "Paid bookings belong to the client — they cancel them from their account. "
                         + "If there's a problem, agree a refund with the client and settle it from Admin → Refunds.");
             }
-            if (Instant.now().isAfter(booking.getStartTime().minus(FREE_CANCELLATION_WINDOW))) {
-                throw new BadRequestException(
-                    "Free cancellation closed — bookings can be cancelled up to 12 hours before the session. "
-                        + "Past that, contact us and we'll find a solution.");
-            }
         }
+
+        // Inside the free window the payment is refunded; past it the client
+        // can still cancel but the payment is retained as credit (published
+        // policy — no gateway refund fires).
+        boolean insideFreeWindow = paid
+            && !Instant.now().isAfter(booking.getStartTime().minus(FREE_CANCELLATION_WINDOW));
 
         BookingStatus oldStatus = booking.getStatus();
         booking.setStatus(BookingStatus.CANCELLED);
@@ -468,9 +470,9 @@ public class BookingService {
 
         Booking saved = bookingRepository.save(booking);
 
-        // Money side of the policy: a cancelled paid booking records a
-        // refund-due entry the team settles with the gateway.
-        if (oldStatus == BookingStatus.CONFIRMED) {
+        // Money side of the policy: only an in-window cancellation of a paid
+        // booking owes the client money.
+        if (paid && insideFreeWindow) {
             recordRefundDue(saved, reason);
         }
 
