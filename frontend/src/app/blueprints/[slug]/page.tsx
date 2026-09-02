@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter, useParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
@@ -70,6 +70,18 @@ export default function BlueprintDetailPage() {
       cancelled = true;
     };
   }, []);
+
+  // ?open=1 (e.g. straight from the order-success CTA) drops the user
+  // directly into the secure viewer once access is confirmed.
+  const autoOpenChecked = useRef(false);
+  useEffect(() => {
+    if (autoOpenChecked.current || !detail || !ownedSlugs) return;
+    autoOpenChecked.current = true;
+    const wantsOpen = new URLSearchParams(window.location.search).get("open") === "1";
+    if (wantsOpen && signedIn && (detail.isFree || ownedSlugs.has(detail.slug))) {
+      setViewerOpen(true);
+    }
+  }, [detail, ownedSlugs, signedIn]);
 
   if (missing) notFound();
 
@@ -185,10 +197,12 @@ export default function BlueprintDetailPage() {
         </div>
 
         {viewerOpen && signedIn && (
-          <div className="max-w-6xl mb-20">
-            <h2 className="display-text text-xl mb-4">Viewer</h2>
-            <SecureBlueprintViewer slug={detail.slug} token={getStoredAuthToken()!} />
-          </div>
+          <SecureBlueprintViewer
+            slug={detail.slug}
+            token={getStoredAuthToken()!}
+            title={detail.title}
+            onClose={() => setViewerOpen(false)}
+          />
         )}
 
         {detail.related.length > 0 && (

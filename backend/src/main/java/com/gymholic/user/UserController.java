@@ -37,6 +37,36 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Profile updated", user));
     }
 
+    /** Uploads (or replaces) the profile picture; returns the refreshed profile. */
+    @PutMapping("/me/avatar")
+    public ResponseEntity<ApiResponse<UserDto>> uploadAvatar(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        UserDto user = userService.updateAvatar(SecurityUtils.getCurrentUserEmail(), file);
+        return ResponseEntity.ok(ApiResponse.success("Profile picture updated", user));
+    }
+
+    /** Removes the profile picture. */
+    @org.springframework.web.bind.annotation.DeleteMapping("/me/avatar")
+    public ResponseEntity<ApiResponse<UserDto>> deleteAvatar() {
+        UserDto user = userService.clearAvatar(SecurityUtils.getCurrentUserEmail());
+        return ResponseEntity.ok(ApiResponse.success("Profile picture removed", user));
+    }
+
+    /**
+     * Public avatar serving — the URL users.profile_image_url points at.
+     * Responses cache hard; the ?v= upload-time version in the URL is what
+     * busts every client's cached copy on re-upload.
+     */
+    @GetMapping("/{id}/avatar")
+    public ResponseEntity<byte[]> getAvatar(@PathVariable Long id) {
+        UserAvatar avatar = userService.getAvatar(id);
+        return ResponseEntity.ok()
+            .header("Cache-Control", "public, max-age=604800, immutable")
+            .header("Content-Type", avatar.getContentType())
+            .header("Content-Length", String.valueOf(avatar.getData().length))
+            .body(avatar.getData());
+    }
+
     /** Changes the password after re-checking the current one; emails a confirmation. */
     @PutMapping("/me/password")
     public ResponseEntity<ApiResponse<Void>> changePassword(

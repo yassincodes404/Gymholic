@@ -20,4 +20,8 @@ public class SavePaymobConfigRequest {
     private String hmacSecret;
     private String publicKey;
     private Boolean enabled;
+    /** Local currency this Paymob account collects (e.g. "EGP"); blank = order currency (USD). */
+    private String currency;
+    /** EGP per USD — converts USD amounts when the currency above differs. */
+    private String egpUsdRate;
 }

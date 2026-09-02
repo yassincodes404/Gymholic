@@ -76,6 +76,13 @@ public class StoreAdminController {
         return ResponseEntity.ok(ApiResponse.success("Product removed from the store", null));
     }
 
+    /** Permanent delete — wipes the product and its files; not undoable. */
+    @DeleteMapping("/products/{id}/purge")
+    public ResponseEntity<ApiResponse<Void>> purgeProduct(@PathVariable Long id) {
+        storeService.purgeProduct(id);
+        return ResponseEntity.ok(ApiResponse.success("Product permanently deleted", null));
+    }
+
     // ---- Uploads ----
 
     @PostMapping("/products/{id}/cover")

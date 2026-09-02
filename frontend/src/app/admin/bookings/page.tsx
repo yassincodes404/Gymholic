@@ -1,8 +1,10 @@
 /*!
   GymHolic Admin Bookings — GET /api/bookings/trainer/{id} with the full
-  lifecycle: confirm, complete (session ended/delivered), cancel, no-show
-  (with reschedule + refund automation), and the booking details the client
-  submitted (topic, phone, message…).
+  lifecycle: confirm, complete (session ended/delivered), reject pending,
+  no-show (with reschedule + refund automation), and the booking details the
+  client submitted (topic, phone, message…). PAID bookings have no cancel
+  button: they belong to the client, who cancels from their account — that
+  records a refund here, which the team settles with the gateway.
 */
 
 "use client";
@@ -10,6 +12,18 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { adminFetch, getAdminUserId, type TrainerBooking } from "@/lib/adminApi";
+
+type RefundRow = {
+  id: number;
+  amount: number;
+  reason: string;
+  status: string;
+  providerRefundId: string;
+  createdAt: string;
+  bookingId: number;
+  clientName: string;
+  clientEmail: string;
+};
 
 const STATUS_STYLES: Record<TrainerBooking["status"], string> = {
   PENDING: "bg-amber-500/15 text-amber-400",
@@ -59,6 +73,18 @@ export default function AdminBookingsPage() {
   const [noShowNote, setNoShowNote] = useState("");
   const [markingNoShow, setMarkingNoShow] = useState(false);
 
+  // ---- Refund queue: money owed after client cancellations ----
+  const [refunds, setRefunds] = useState<RefundRow[] | null>(null);
+  const [settlingId, setSettlingId] = useState<number | null>(null);
+
+  const loadRefunds = useCallback(async () => {
+    try {
+      setRefunds(await adminFetch<RefundRow[]>("admin/refunds"));
+    } catch {
+      setRefunds([]);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     const userId = getAdminUserId();
     if (!userId) return;
@@ -76,7 +102,8 @@ export default function AdminBookingsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadRefunds();
+  }, [load, loadRefunds]);
 
   async function act(id: number, action: "confirm" | "cancel" | "complete") {
     setBusyId(id);
@@ -89,6 +116,24 @@ export default function AdminBookingsPage() {
       setError(e instanceof Error ? e.message : "Action failed.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  // ---- Refund settle action ----
+  async function settleRefund(refund: RefundRow) {
+    setSettlingId(refund.id);
+    setError(null);
+    try {
+      await adminFetch(`admin/refunds/${refund.id}/settle`, {
+        method: "PUT",
+        body: JSON.stringify({ providerRefundId: null }),
+      });
+      setNotice(`Refund of $${refund.amount} to ${refund.clientName} marked as settled.`);
+      await loadRefunds();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not settle the refund.");
+    } finally {
+      setSettlingId(null);
     }
   }
 
@@ -132,6 +177,50 @@ export default function AdminBookingsPage() {
       )}
       {notice && (
         <div className="mb-6 bg-emerald-950/50 border border-emerald-800 text-emerald-300 rounded-lg p-4">{notice}</div>
+      )}
+
+      {/* Refund queue — money owed to clients after cancellations */}
+      {refunds !== null && refunds.length > 0 && (
+        <div className="admin-card p-5 mb-6 booking-rise">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-paper/60">
+              Refunds due ({refunds.filter((r) => r.status === "PENDING").length})
+            </h2>
+          </div>
+          <ul className="space-y-3">
+            {refunds.map((r) => (
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-3 border border-paper/10 rounded-xl px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    ${r.amount} — {r.clientName || r.clientEmail}
+                    <span className="text-paper/40 text-xs ml-2">booking #{r.bookingId}</span>
+                  </p>
+                  <p className="text-xs text-paper/50 truncate">{r.reason}</p>
+                </div>
+                {r.status === "PENDING" ? (
+                  <button
+                    onClick={() => settleRefund(r)}
+                    disabled={settlingId === r.id}
+                    className="admin-btn admin-btn-ghost !px-3 !py-1.5 !text-xs"
+                  >
+                    {settlingId === r.id ? "Saving…" : "Mark settled"}
+                  </button>
+                ) : (
+                  <span className="text-[10px] uppercase tracking-wider bg-emerald-500/15 text-emerald-400 px-2 py-1 rounded-full">
+                    Settled
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-paper/40 mt-3">
+            Settle with the client&apos;s original payment method (Paymob dashboard or bank
+            transfer), then mark it done — this is the paper trail, not the money movement.
+          </p>
+        </div>
       )}
 
       {loading ? (
@@ -213,10 +302,10 @@ export default function AdminBookingsPage() {
                             Mark Ended
                           </button>
                         )}
-                        {(b.status === "PENDING" || b.status === "CONFIRMED") && (
+                        {b.status === "PENDING" && (
                           <button disabled={busyId === b.id} onClick={() => act(b.id, "cancel")}
                             className="bg-red-900/60 hover:bg-red-900 text-red-200 rounded-lg px-3 py-1 text-xs disabled:opacity-50">
-                            Cancel
+                            Reject
                           </button>
                         )}
                         {(b.status === "CONFIRMED" || b.status === "COMPLETED") && (

@@ -1,6 +1,5 @@
 package com.gymholic.payment.dto;
 
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,16 +8,21 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
+/**
+ * A payment is for exactly one target: a consultation booking OR a store
+ * order. The amount is resolved server-side either way; it travels here
+ * only for request-shape symmetry with older clients.
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreatePaymentRequest {
 
-    @NotNull(message = "Booking ID is required")
     private Long bookingId;
 
-    @NotNull(message = "Amount is required")
+    private Long orderId;
+
     @Positive(message = "Amount must be positive")
     private BigDecimal amount;
 
@@ -27,4 +31,8 @@ public class CreatePaymentRequest {
 
     @Builder.Default
     private String provider = "stripe";
+
+    public boolean hasTarget() {
+        return bookingId != null || orderId != null;
+    }
 }

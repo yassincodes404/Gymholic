@@ -24,6 +24,7 @@ public class ProductSummaryDto {
     private Boolean featured;
     private Boolean hasCover;
     private Boolean hasPdf;
+    private Boolean active;
     private CategoryRefDto category;
 
     @Data

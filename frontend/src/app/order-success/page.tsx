@@ -11,13 +11,15 @@ import { useLenis } from "@/components/motion/useLenis";
 import { ScrollRefresher } from "@/components/motion/ScrollRefresher";
 import { buildBackendApiUrl, getFrontendApiPath } from "@/lib/api";
 import { getStoredAuthToken } from "@/lib/auth";
+import { IconPdf, IconGraduationCap } from "@/components/account/icons";
 
 type Order = {
   id: string;
   email?: string;
   status?: string;
-  items: { id: string; name: string; price: number; resourceType: string }[];
+  items: { id: string; name: string; price: number; kind: "ACADEMY" | "PRODUCT" }[];
   total: number;
+  createdAt?: string;
 };
 
 /** Numeric ids are real backend orders; "GH-…" ids are guest (KV) orders. */
@@ -38,11 +40,12 @@ async function loadOrder(orderId: string): Promise<Order | null> {
     return {
       id: `#${d.id}`,
       status: d.status,
+      createdAt: d.createdAt,
       items: (d.items ?? []).map((i: { productId: string; title: string; unitPrice: number; productType: string }) => ({
         id: i.productId,
         name: i.title,
         price: i.unitPrice,
-        resourceType: i.productType === "ACADEMY" ? "Academy Membership" : "Digital Product",
+        kind: i.productType === "ACADEMY" ? ("ACADEMY" as const) : ("PRODUCT" as const),
       })),
       total: d.total,
     };
@@ -50,7 +53,16 @@ async function loadOrder(orderId: string): Promise<Order | null> {
 
   const res = await fetch(getFrontendApiPath(`/orders/${orderId}`));
   if (!res.ok) return null;
-  return res.json();
+  const data = await res.json();
+  return {
+    ...data,
+    items: (data.items ?? []).map((i: { id: string; name: string; price: number; resourceType?: string }) => ({
+      id: i.id,
+      name: i.name,
+      price: i.price,
+      kind: i.resourceType === "Academy Membership" ? ("ACADEMY" as const) : ("PRODUCT" as const),
+    })),
+  };
 }
 
 function OrderSuccessContent() {
@@ -58,7 +70,6 @@ function OrderSuccessContent() {
   const orderId = params.get("order");
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(() => Boolean(orderId));
-  const [showDownloadNote, setShowDownloadNote] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -68,15 +79,37 @@ function OrderSuccessContent() {
       .finally(() => setLoading(false));
   }, [orderId]);
 
+  // The messaging adapts to what was actually bought: a membership unlocks
+  // the Academy, a Blueprint unlocks the secure viewer. Nothing here is
+  // downloadable by design.
+  const membership = order?.items.find((i) => i.kind === "ACADEMY") ?? null;
+  const firstBlueprint = order?.items.find((i) => i.kind === "PRODUCT") ?? null;
+
+  const headline = membership
+    ? "You're On The Inside."
+    : "Your Blueprint Is Ready.";
+  const subline = membership
+    ? "Your Academy Early Access is secured — you're a founding member now."
+    : "It's unlocked in your account, ready to open in the secure viewer.";
+
   return (
     <section className="section-dark min-h-screen px-6 md:px-10 pt-32 pb-24 text-center">
+      <div
+        className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center"
+        style={{ background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.35)" }}
+        aria-hidden
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+          <path d="M4 12.5L9.5 18L20 6.5" stroke="#4ade80" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
       <p className="text-sm tracking-widest uppercase mb-4" style={{ color: "var(--orange)" }}>
-        Order Complete
+        {membership ? "Membership Active" : "Order Complete"}
       </p>
-      <h1 className="display-hero text-4xl md:text-6xl mb-4">Your Blueprint Is Ready.</h1>
-      <p className="opacity-70 max-w-md mx-auto mb-14">Your Gymholic resources are ready to access.</p>
+      <h1 className="display-hero text-4xl md:text-6xl mb-4">{headline}</h1>
+      <p className="opacity-70 max-w-md mx-auto mb-14">{subline}</p>
 
-      <div className="max-w-lg mx-auto rounded-2xl p-8 text-left" style={{ background: "var(--surface)" }}>
+      <div className="max-w-lg mx-auto rounded-2xl p-8 text-left" style={{ background: "var(--surface)", border: "1px solid rgba(245,241,232,0.1)" }}>
         {loading ? (
           <p className="opacity-50 text-center">Loading your order…</p>
         ) : !order ? (
@@ -97,17 +130,19 @@ function OrderSuccessContent() {
                         <BlueprintCover lines={product.coverLines} size="mini" />
                       ) : (
                         <div
-                          className="w-full h-full rounded-lg flex items-center justify-center text-xl"
-                          style={{ background: "rgba(255,106,0,0.12)", border: "1px solid rgba(255,106,0,0.25)" }}
+                          className="w-full h-full rounded-lg flex items-center justify-center"
+                          style={{ background: "rgba(255,106,0,0.12)", border: "1px solid rgba(255,106,0,0.25)", color: "var(--orange)" }}
                           aria-hidden
                         >
-                          🎓
+                          {item.kind === "ACADEMY" ? <IconGraduationCap width={24} height={24} /> : <IconPdf width={24} height={24} />}
                         </div>
                       )}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-medium">{item.name}</p>
-                      <p className="text-xs opacity-50">{item.resourceType}</p>
+                      <p className="text-xs opacity-50">
+                        {item.kind === "ACADEMY" ? "Academy Membership · Early Access" : "Blueprint · view in Gymholic"}
+                      </p>
                     </div>
                     <span className="text-sm">${item.price}</span>
                   </div>
@@ -143,19 +178,35 @@ function OrderSuccessContent() {
 
       <div className="flex flex-col items-center gap-4 mt-10">
         <div className="flex flex-wrap gap-4 justify-center">
-          <button type="button" onClick={() => setShowDownloadNote(true)} className="btn-pill">
-            Download Files
-          </button>
-          <Link href="/blueprints" className="btn-pill btn-pill--ghost">
-            Back to Blueprints
-          </Link>
+          {membership ? (
+            <>
+              <Link href="/account?tab=membership" className="btn-pill">
+                View My Membership
+              </Link>
+              <Link href="/academy" className="btn-pill btn-pill--ghost">
+                Back to Academy
+              </Link>
+            </>
+          ) : firstBlueprint ? (
+            <>
+              <Link href={`/blueprints/${firstBlueprint.id}?open=1`} className="btn-pill">
+                Open in Viewer
+              </Link>
+              <Link href="/account?tab=library" className="btn-pill btn-pill--ghost">
+                My Library
+              </Link>
+            </>
+          ) : (
+            <Link href="/blueprints" className="btn-pill">
+              Browse Blueprints
+            </Link>
+          )}
         </div>
-        {showDownloadNote && (
-          <p className="text-sm opacity-50 max-w-sm">
-            Your files will be available here once product PDFs are uploaded to the store — for now, check your
-            email for your receipt.
-          </p>
-        )}
+        <p className="text-xs opacity-40 max-w-sm">
+          {membership
+            ? "We'll email you the moment the Academy library opens — your seat is guaranteed."
+            : "Blueprints live in your account and open in the secure viewer — nothing to download, nothing to lose."}
+        </p>
       </div>
     </section>
   );

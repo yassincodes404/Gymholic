@@ -31,6 +31,7 @@ export async function generateMetadata({
       url: `${SITE_URL}/blog/${post.slug}`,
       type: "article",
       publishedTime: post.publishedAt,
+      images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Gymholic" }],
     },
   };
 }

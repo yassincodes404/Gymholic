@@ -19,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -37,34 +39,103 @@ public class OrderService {
     private final com.gymholic.store.repository.ProductRepository productRepository;
 
     /**
-     * Checks out the user's cart into a paid order. Payments are still in
-     * test mode (mock provider), so the order is created and completed in one
-     * step; when Paymob goes live this becomes create-PENDING -> webhook-PAID.
+     * Checks out the user's cart into a paid order. Mock/test mode: the
+     * order is created and completed in one step; the real Paymob path goes
+     * through {@link #createPendingOrder} + the payment webhook instead.
      */
     @Transactional
     public OrderDto checkout(String email) {
-        User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+        User user = requireUser(email);
+        // PENDING → markOrderPaid runs the full fulfilment chain (cart clear,
+        // Academy whitelist, receipts) exactly like a real webhook would.
+        Order saved = buildOrderFromCart(user, Order.Status.PENDING, "mock",
+            "mock-order-" + UUID.randomUUID());
+        markOrderPaid(saved.getId());
+        return toDto(saved, orderItemRepository.findByOrderId(saved.getId()));
+    }
 
+    /**
+     * Real-gateway path step 1: a PENDING order with server-side pricing.
+     * The cart is NOT cleared yet — that happens when the payment webhook
+     * flips the order to PAID, so a failed card leaves the cart intact.
+     */
+    @Transactional
+    public OrderDto createPendingOrder(String email, String provider) {
+        User user = requireUser(email);
+        Order saved = buildOrderFromCart(user, Order.Status.PENDING, provider, null);
+        return toDto(saved, orderItemRepository.findByOrderId(saved.getId()));
+    }
+
+    /**
+     * Real-gateway step 2 (webhook / mock completion): flip a PENDING order
+     * to PAID and run the fulfilment chain — clear the cart, whitelist the
+     * Academy pre-purchase, send the receipts. Idempotent: an order already
+     * PAID is returned as-is (webhook retries can land twice).
+     */
+    @Transactional
+    public Order markOrderPaid(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
+        if (order.getStatus() == Order.Status.PAID) {
+            return order;
+        }
+        List<OrderItem> items = orderItemRepository.findByOrderId(order.getId());
+        order.setStatus(Order.Status.PAID);
+        orderRepository.save(order);
+        cartRepository.deleteByUserId(order.getUser().getId());
+        if (items.stream().anyMatch(i -> "ACADEMY".equalsIgnoreCase(i.getProductType()))) {
+            addAcademyPrePurchase(order.getUser(), order.getTotal());
+        }
+        notify(order.getUser(), order, items);
+        return order;
+    }
+
+    /** Payment-side accessor: the entity behind a payment's order id. */
+    @Transactional(readOnly = true)
+    public Order getOrderForPayment(Long orderId) {
+        return orderRepository.findById(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
+    }
+
+    private User requireUser(String email) {
+        return userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    }
+
+    /**
+     * Shared cart → order assembly: duplicate-payment guards and
+     * server-side pricing (the store's canonical title/price always win —
+     * a tampered client-sent price can never override them, mirroring the
+     * booking price philosophy in BookingService).
+     */
+    private Order buildOrderFromCart(User user, Order.Status status, String provider, String providerRef) {
         List<CartItem> cartItems = cartRepository.findByUserIdOrderByCreatedAtAsc(user.getId());
         if (cartItems.isEmpty()) {
             throw new BadRequestException("Your cart is empty.");
         }
 
+        // Duplicate-payment guard: anything the user already paid for (an
+        // owned Blueprint, an active Academy membership) is rejected here —
+        // a stale cart can never charge the same product twice.
+        Set<String> ownedProductIds = new HashSet<>(
+            orderItemRepository.findPurchasedProductIds(user.getId(), Order.Status.PAID));
+        for (CartItem cartItem : cartItems) {
+            if (ownedProductIds.contains(cartItem.getProductId())) {
+                throw new BadRequestException(
+                    "'" + cartItem.getTitle() + "' is already in your account — remove it from your cart to continue.");
+            }
+        }
+
         Order order = Order.builder()
             .user(user)
-            .status(Order.Status.PAID)
+            .status(status)
             .total(BigDecimal.ZERO)
             .currency(cartItems.get(0).getCurrency())
-            .providerName("mock")
-            .providerRef("mock-order-" + UUID.randomUUID())
+            .providerName(provider)
+            .providerRef(providerRef)
             .build();
         Order saved = orderRepository.save(order);
 
-        // Server-side pricing for store products: the canonical id is the
-        // product slug, and when a cart item matches one, the store's title/
-        // price win — a tampered client-sent price can never override them
-        // (mirrors the booking price philosophy in BookingService).
         List<OrderItem> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         String currency = cartItems.get(0).getCurrency();
@@ -96,20 +167,7 @@ public class OrderService {
 
         saved.setTotal(total);
         saved.setCurrency(currency);
-        orderRepository.save(saved);
-
-        cartRepository.deleteByUserId(user.getId());
-
-        // Pre-purchased Academy membership: the buyer is guaranteed launch
-        // access — register them on the Academy whitelist as a pre-purchase.
-        boolean academyPrePurchase = items.stream()
-            .anyMatch(i -> "ACADEMY".equalsIgnoreCase(i.getProductType()));
-        if (academyPrePurchase) {
-            addAcademyPrePurchase(user, total);
-        }
-
-        notify(user, saved, items);
-        return toDto(saved, items);
+        return orderRepository.save(saved);
     }
 
     private void addAcademyPrePurchase(User user, java.math.BigDecimal total) {

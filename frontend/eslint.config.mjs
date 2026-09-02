@@ -13,7 +13,9 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "warn",
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  // public/** holds vendored static assets (e.g. the minified pdf.js worker)
+  // that are shipped verbatim — never source we lint.
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "public/**"]),
 ]);
 
 export default eslintConfig;

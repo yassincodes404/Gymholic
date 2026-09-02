@@ -21,7 +21,7 @@ const STATUS_TITLE: Partial<Record<DayStatus, string>> = {
   "fully-booked": "Fully booked",
   unavailable: "Unavailable",
   closed: "Closed",
-  booked: "The free session for this day is already booked",
+  booked: "The Free Time Session for this day is already booked",
 };
 
 export function BookingCalendar({
@@ -178,9 +178,9 @@ export function BookingCalendar({
       {loading ? (
         <p className="text-sm opacity-40">Loading availability…</p>
       ) : (
-        <div className="grid grid-cols-7 gap-1.5">
+        <div key={`${viewYear}-${viewMonth}`} className="booking-rise grid grid-cols-7 gap-1.5 md:gap-2.5">
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <span key={i} className="text-center text-xs opacity-40 pb-1">
+            <span key={i} className="text-center text-xs md:text-sm opacity-40 pb-1">
               {d}
             </span>
           ))}
@@ -197,7 +197,7 @@ export function BookingCalendar({
                 type="button"
                 onClick={() => handleSelect(day, status)}
                 disabled={status !== "available" && status !== "selected"}
-                className="aspect-square rounded-lg text-sm flex items-center justify-center transition-colors"
+                className={`booking-tile ${isSelected ? "booking-tile-selected" : ""} aspect-square rounded-lg md:rounded-xl text-sm md:text-base flex items-center justify-center`}
                 style={{
                   background: style.bg,
                   color: status === "booked" ? "var(--orange)" : style.color,
@@ -219,7 +219,7 @@ export function BookingCalendar({
           <span>&#9679; Available</span>
           <span>&#9675; Fully Booked</span>
           <span style={{ textDecoration: "line-through" }}>Closed</span>
-          <span style={{ color: "var(--orange)" }}>&#9679; Free Session Taken</span>
+          <span style={{ color: "var(--orange)" }}>&#9679; Time Session Taken</span>
           <span className="opacity-60">Past</span>
         </div>
       ) : (

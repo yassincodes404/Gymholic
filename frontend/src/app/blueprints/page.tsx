@@ -54,7 +54,7 @@ export default function BlueprintsPage() {
               backend is running.
             </div>
           )}
-          {categories && (
+          {categories && categories.length > 0 && (
             <BlueprintFilters
               active={active}
               onChange={setActive}
@@ -65,6 +65,12 @@ export default function BlueprintsPage() {
           {filtered === null ? (
             <FadeUp as="div">
               <p className="px-6 md:px-10 text-sm opacity-50">Loading the library…</p>
+            </FadeUp>
+          ) : (products?.length ?? 0) === 0 && !offline ? (
+            <FadeUp as="div">
+              <p className="px-6 md:px-10 opacity-50">
+                No Blueprints yet — check back soon, new drops are on the way.
+              </p>
             </FadeUp>
           ) : filtered.length === 0 ? (
             <FadeUp as="div">

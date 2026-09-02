@@ -57,6 +57,9 @@ public class PaymentServiceTest {
     @Mock
     private SettingsService settingsService;
 
+    @Mock
+    private com.gymholic.order.OrderService orderService;
+
     private PaymentService paymentService;
 
     @BeforeEach
@@ -67,6 +70,7 @@ public class PaymentServiceTest {
             paymentRepository,
             bookingRepository,
             bookingService,
+            orderService,
             notificationService,
             List.of(paymobProvider, mockProvider),
             mock(PaymentProviderConfigService.class),

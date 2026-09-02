@@ -26,5 +26,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findBySlugInAndActiveTrue(Collection<String> slugs);
 
+    /**
+     * Purchased products regardless of the active flag — archiving a
+     * blueprint hides it from the storefront but must never yank it out of
+     * a buyer's library (they paid for it).
+     */
+    List<Product> findBySlugIn(Collection<String> slugs);
+
     List<Product> findByActiveTrueAndFreeTrue();
 }

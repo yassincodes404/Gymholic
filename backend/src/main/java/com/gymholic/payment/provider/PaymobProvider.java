@@ -35,6 +35,7 @@ public class PaymobProvider implements PaymentProvider {
      * config saved from the admin UI takes effect immediately.
      */
     private final PaymentProviderConfigService configService;
+    private final com.gymholic.payment.FxRateService fxRateService;
 
     private final RestTemplate restTemplate;
 
@@ -52,10 +53,6 @@ public class PaymobProvider implements PaymentProvider {
 
     @Value("${app.payments.paymob-redirect-path:/payment-status}")
     private String redirectPath;
-
-    /** Optional currency override for Paymob accounts that cannot collect USD. */
-    @Value("${app.paymob.currency:}")
-    private String paymobCurrency;
 
     @Override
     public String getProviderName() {
@@ -91,12 +88,23 @@ public class PaymobProvider implements PaymentProvider {
                 "Paymob public key is missing — add PAYMOB_PUBLIC_KEY (egy_pk_…) in Admin → Integrations.");
         }
         try {
-            long amountCents = amount.movePointRight(2).longValueExact();
-
-            // Accounts without USD collection (e.g. Egyptian Paymob) can force
-            // their local currency here; amounts stay in display units.
-            String effectiveCurrency = (paymobCurrency != null && !paymobCurrency.isBlank())
-                ? paymobCurrency.trim() : currency;
+            // Accounts without USD collection (e.g. Egyptian Paymob) collect
+            // their local currency instead — and the amount is CONVERTED at
+            // the admin-managed EGP/USD rate, never just relabeled, so a $49
+            // order charges the correct EGP value.
+            String effectiveCurrency = configService.getPaymobCurrencyOverride();
+            if (effectiveCurrency == null || effectiveCurrency.isBlank()) {
+                effectiveCurrency = currency;
+            }
+            BigDecimal payableAmount = amount;
+            if (!effectiveCurrency.equalsIgnoreCase(currency)) {
+                payableAmount = amount.multiply(configService.getEgpUsdRate())
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            }
+            long amountCents = payableAmount.movePointRight(2).longValueExact();
+            log.info("Paymob intention: {} {} (order currency {}) for integration {} — FX {} EGP/USD ({})",
+                payableAmount.toPlainString(), effectiveCurrency, currency, credentials.integrationId(),
+                configService.getEgpUsdRate(), fxRateService.getRateSource());
 
             Map<String, Object> body = new HashMap<>();
             body.put("amount", amountCents);
@@ -155,6 +163,8 @@ public class PaymobProvider implements PaymentProvider {
             Map<String, String> result = new HashMap<>();
             result.put("checkoutUrl", checkoutUrl);
             result.put("transactionId", orderId);
+            result.put("payableAmount", payableAmount.toPlainString());
+            result.put("payableCurrency", effectiveCurrency.toUpperCase());
             return result;
         } catch (BadRequestException e) {
             throw e;

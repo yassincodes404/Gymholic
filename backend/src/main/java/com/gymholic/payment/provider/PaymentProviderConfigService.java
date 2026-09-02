@@ -32,9 +32,11 @@ public class PaymentProviderConfigService {
     public static final String KEY_HMAC_SECRET = "PAYMOB_HMAC_SECRET";
     public static final String KEY_PUBLIC_KEY = "PAYMOB_PUBLIC_KEY";
     public static final String KEY_PAYMOB_ENABLED = "PAYMOB_ENABLED";
+    public static final String KEY_EGP_USD_RATE = "PAYMOB_EGP_USD_RATE";
 
     private final SettingsService settingsService;
     private final EncryptionUtil encryptionUtil;
+    private final com.gymholic.payment.FxRateService fxRateService;
 
     // Environment fallbacks (what the deployment was configured with).
     @Value("${app.paymob.api-key:}")
@@ -54,6 +56,14 @@ public class PaymentProviderConfigService {
 
     @Value("${app.payments.mock-enabled:false}")
     private boolean mockEnabled;
+
+    /** Optional currency override for Paymob accounts that cannot collect USD. */
+    @Value("${app.payments.currency:}")
+    private String envCurrencyOverride;
+
+    /** EGP per USD — used to CONVERT amounts when the override is active. */
+    @Value("${app.payments.egp-usd-rate:48.0}")
+    private String envEgpUsdRate;
 
     public record PaymobCredentials(String apiKey, String integrationId, String iframeId,
                                     String hmacSecret, String publicKey) {
@@ -128,19 +138,62 @@ public class PaymentProviderConfigService {
     }
 
     /**
+     * The local currency Paymob should collect instead of USD (e.g. "EGP"
+     * for Egyptian accounts that can't collect USD), or blank when the
+     * gateway collects the order currency as-is. Settings table
+     * PAYMOB_CURRENCY wins over the env variable.
+     */
+    public String getPaymobCurrencyOverride() {
+        try {
+            String stored = settingsService.getAllSettings().get("PAYMOB_CURRENCY");
+            if (stored != null && !stored.isBlank()) return stored.trim().toUpperCase();
+        } catch (Exception e) {
+            log.warn("Could not read Paymob currency setting: {}", e.getMessage());
+        }
+        return envCurrencyOverride == null ? "" : envCurrencyOverride.trim().toUpperCase();
+    }
+
+    /**
+     * EGP per USD — used to CONVERT USD amounts whenever the currency
+     * override is active, so a $49 order charges the correct EGP value.
+     * Delegates to {@link com.gymholic.payment.FxRateService}: the admin
+     * setting pins it when present, otherwise the live daily market rate
+     * applies (48.0 only as a last-resort fallback).
+     */
+    public java.math.BigDecimal getEgpUsdRate() {
+        return fxRateService.getEgpUsdRate();
+    }
+
+    /**
      * Saves any provided credential / toggle (blank fields keep their stored
      * value). The two secrets are encrypted before they touch the database;
      * the integration/iframe IDs are identifiers and stay readable.
      */
     @Transactional
     public void savePaymobConfig(String apiKey, String integrationId, String iframeId,
-                                 String hmacSecret, String publicKey, Boolean enabled) {
+                                 String hmacSecret, String publicKey, Boolean enabled,
+                                 String currency, String egpUsdRate) {
         if (notBlank(apiKey)) settingsService.updateSetting(KEY_API_KEY, encrypt(apiKey.trim()));
         if (notBlank(integrationId)) settingsService.updateSetting(KEY_INTEGRATION_ID, integrationId.trim());
         if (notBlank(iframeId)) settingsService.updateSetting(KEY_IFRAME_ID, iframeId.trim());
         if (notBlank(hmacSecret)) settingsService.updateSetting(KEY_HMAC_SECRET, encrypt(hmacSecret.trim()));
         if (notBlank(publicKey)) settingsService.updateSetting(KEY_PUBLIC_KEY, publicKey.trim());
         if (enabled != null) settingsService.updateSetting(KEY_PAYMOB_ENABLED, enabled.toString());
+        // Egypt configuration: the currency the account collects (EGP) and
+        // the EGP/USD conversion rate applied to USD order totals.
+        if (currency != null) {
+            settingsService.updateSetting("PAYMOB_CURRENCY", currency.trim().toUpperCase());
+        }
+        if (notBlank(egpUsdRate)) {
+            try {
+                java.math.BigDecimal rate = new java.math.BigDecimal(egpUsdRate.trim());
+                if (rate.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    settingsService.updateSetting(KEY_EGP_USD_RATE, rate.toPlainString());
+                }
+            } catch (NumberFormatException e) {
+                log.warn("Ignored invalid EGP rate '{}'", egpUsdRate);
+            }
+        }
     }
 
     private String encrypt(String plain) {

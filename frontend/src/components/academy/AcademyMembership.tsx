@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { academyMembership } from "@/lib/content";
 import { FadeUp } from "@/components/motion/FadeUp";
 import { MagneticButton } from "@/components/motion/MagneticButton";
@@ -15,11 +16,11 @@ import { ACADEMY_MEMBERSHIP_FALLBACK_PRICE } from "@/lib/catalog";
  * (and a permanent seat on the Academy whitelist) the day content arrives.
  */
 export function AcademyMembership() {
+  const router = useRouter();
   const { addProduct, open, isInCart } = useCart();
   const [price, setPrice] = useState(ACADEMY_MEMBERSHIP_FALLBACK_PRICE);
   const [enabled, setEnabled] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setSignedIn(Boolean(getStoredAuthToken()));
@@ -35,8 +36,10 @@ export function AcademyMembership() {
   }, []);
 
   function prePurchase() {
+    // Same gate as every paid surface: no account yet → sign in / create
+    // one and land right back here to pre-purchase.
     if (!signedIn) {
-      setNotice("Create a free account first — your membership is tied to it, then come back to pre-purchase.");
+      router.push("/login?next=/academy");
       return;
     }
     addProduct({
@@ -48,7 +51,6 @@ export function AcademyMembership() {
       kindLabel: "Academy Membership",
     });
     open();
-    setNotice(null);
   }
 
   return (
@@ -105,12 +107,6 @@ export function AcademyMembership() {
           <MagneticButton href="#waitlist" className="btn-pill">
             Join the Academy
           </MagneticButton>
-        )}
-
-        {notice && (
-          <p className="text-sm mt-4" style={{ color: "var(--orange)" }} role="alert">
-            {notice}
-          </p>
         )}
 
         <a href="#waitlist" className="inline-block mt-4 text-xs opacity-50 underline hover:no-underline">

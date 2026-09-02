@@ -14,6 +14,7 @@ public class NotificationService {
 
     private final EmailService emailService;
     private final IcsService icsService;
+    private final MessagingService messagingService;
 
     public void sendBookingCreated(String toEmail, String clientName,
                                    String trainerName, String dateTime, String paymentUrl) {
@@ -41,6 +42,9 @@ public class NotificationService {
                 "currency", currency,
                 "orderId", orderId
             ));
+        messagingService.sendUserMessage(toEmail,
+            "Payment received — thank you! We got your " + currency + " " + amount
+                + " payment (ref " + orderId + "). A receipt is in your email. — Gymholic");
     }
 
     public void sendBookingConfirmation(String toEmail, String clientName,
@@ -72,6 +76,11 @@ public class NotificationService {
                 "meetingLabel", meetingLabel != null ? meetingLabel : "Google Meet"
             ),
             attachments);
+
+        // SMS/WhatsApp alongside the email — texts stay short (SMS segments).
+        messagingService.sendUserMessage(toEmail,
+            "Your Gymholic session with " + trainerName + " is confirmed for " + dateTime
+                + ". Join here: " + (meetLink != null ? meetLink : ""));
     }
 
     public void sendBookingRescheduled(String toEmail, String clientName,
@@ -87,6 +96,8 @@ public class NotificationService {
                 "newDateTime", newDateTime,
                 "meetLink", meetLink != null ? meetLink : ""
             ));
+        messagingService.sendUserMessage(toEmail,
+            "Your Gymholic session was rescheduled: " + newDateTime + " (was " + oldDateTime + "). See you then! — Gymholic");
     }
 
     /** Rescheduled confirmation with a refreshed calendar invite attached. */
@@ -106,6 +117,8 @@ public class NotificationService {
                 "meetLink", meetLink != null ? meetLink : ""
             ),
             List.of(icsService.bookingInvite(booking)));
+        messagingService.sendUserMessage(toEmail,
+            "Your Gymholic session was rescheduled: " + newDateTime + " (was " + oldDateTime + "). See you then! — Gymholic");
     }
 
     /** Admin rejected the booking (slot unavailable, payment issue, …). */
@@ -161,6 +174,9 @@ public class NotificationService {
                 "dateTime", dateTime,
                 "meetLink", meetLink != null ? meetLink : ""
             ));
+        messagingService.sendUserMessage(toEmail,
+            "Reminder: your Gymholic session with " + trainerName + " starts " + dateTime
+                + (meetLink != null && !meetLink.isBlank() ? ". Join: " + meetLink : ""));
     }
 
     public void sendBookingCancellation(String toEmail, String name,
@@ -174,6 +190,10 @@ public class NotificationService {
                 "dateTime", dateTime,
                 "reason", reason != null ? reason : "No reason provided"
             ));
+        messagingService.sendUserMessage(toEmail,
+            "Your Gymholic session on " + dateTime + " was cancelled. "
+                + (reason != null && !reason.isBlank() ? "Reason: " + reason + ". " : "")
+                + "You can rebook any time — Gymholic");
     }
 
     public void sendPasswordReset(String toEmail, String name, String resetLink) {
@@ -299,6 +319,8 @@ public class NotificationService {
             "Order Confirmed — Gymholic",
             "order-confirmation",
             Map.of("name", name, "total", total, "itemsList", itemsList));
+        messagingService.sendUserMessage(toEmail,
+            "Order confirmed — thank you! Total " + total + ". Your receipt is in your email. — Gymholic");
     }
 
     /** No-show email to the client — template depends on whether the expert attended. */

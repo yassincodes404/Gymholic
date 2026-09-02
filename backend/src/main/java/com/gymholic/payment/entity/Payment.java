@@ -23,9 +23,15 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Set for consultation bookings (booking payments). */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "booking_id", nullable = false)
+    @JoinColumn(name = "booking_id")
     private Booking booking;
+
+    /** Set for store orders (blueprints / Academy membership payments). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private com.gymholic.order.entity.Order order;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;

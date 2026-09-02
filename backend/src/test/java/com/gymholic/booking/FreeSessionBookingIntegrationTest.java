@@ -31,9 +31,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Free Time Session semantics: a FREE 3-hour session that goes straight to
- * CONFIRMED without a payment, limited to ONE per trainer per expert-local
- * day (enforced under the trainer row lock taken at creation).
+ * Free Time Session semantics: a PAID 3-hour session (its own admin-managed
+ * price, BOOKING_PRICE_FREE_SESSION) that flows through checkout like every
+ * other service, limited to ONE per trainer per expert-local day (enforced
+ * under the trainer row lock taken at creation).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -58,6 +59,9 @@ class FreeSessionBookingIntegrationTest {
 
     @Autowired
     private SettingsService settingsService;
+
+    @Autowired
+    private com.gymholic.payment.PaymentService paymentService;
 
     private User client;
     private User trainer;
@@ -109,17 +113,37 @@ class FreeSessionBookingIntegrationTest {
 
     @Test
     @WithMockUser(username = "freesessionclient@gymholic.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
-    void freeSession_IsConfirmedImmediately_WithoutPaymentRow() throws Exception {
+    void freeSession_CreatedPending_ThenConfirmedAfterPayment() throws Exception {
         long paymentsBefore = paymentRepository.count();
 
-        mockMvc.perform(post("/api/bookings")
+        String created = mockMvc.perform(post("/api/bookings")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(bookingBody(freeSlotStart, 180, "FREE_SESSION")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
-                .andExpect(jsonPath("$.data.serviceType").value("FREE_SESSION"));
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.serviceType").value("FREE_SESSION"))
+                .andReturn().getResponse().getContentAsString();
+        long bookingId = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(created).path("data").path("id").asLong();
 
+        // No payment row until checkout starts.
         assertThat(paymentRepository.count()).isEqualTo(paymentsBefore);
+
+        String payment = mockMvc.perform(post("/api/payments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format(
+                                "{\"bookingId\": %d, \"amount\": 300, \"currency\": \"USD\", \"provider\": \"mock\"}",
+                                bookingId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.amount").value(300.0))
+                .andReturn().getResponse().getContentAsString();
+        long paymentId = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                .readTree(payment).path("data").path("id").asLong();
+
+        // Completing the payment runs the standard confirm pipeline.
+        paymentService.completeMockPayment(paymentId, "freesessionclient@gymholic.com", false);
+        assertThat(bookingRepository.findById(bookingId).orElseThrow().getStatus())
+                .isEqualTo(com.gymholic.common.enums.BookingStatus.CONFIRMED);
     }
 
     @Test
@@ -167,7 +191,7 @@ class FreeSessionBookingIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(bookingBody(wednesdayStart, 180, "FREE_SESSION")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.data.status").value("PENDING"));
     }
 
     @Test
@@ -187,23 +211,29 @@ class FreeSessionBookingIntegrationTest {
 
     @Test
     @WithMockUser(username = "freesessionclient@gymholic.com", authorities = {"ROLE_CLIENT", "EMAIL_VERIFIED"})
-    void freeSession_PaymentAttempt_Rejected() throws Exception {
-        String created = mockMvc.perform(post("/api/bookings")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(bookingBody(freeSlotStart, 180, "FREE_SESSION")))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        long bookingId = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
-                .readTree(created).path("data").path("id").asLong();
+    void freeSession_PaymentResolvesConfiguredPrice() throws Exception {
+        settingsService.updateSetting("BOOKING_PRICE_FREE_SESSION", "250");
+        try {
+            String created = mockMvc.perform(post("/api/bookings")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(bookingBody(freeSlotStart, 180, "FREE_SESSION")))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            long bookingId = com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                    .readTree(created).path("data").path("id").asLong();
 
-        mockMvc.perform(post("/api/payments")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(String.format(
-                                "{\"bookingId\": %d, \"amount\": 150, \"currency\": \"USD\", \"provider\": \"mock\"}",
-                                bookingId)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("does not require payment")));
+            // The amount is resolved server-side from the admin setting —
+            // the client-suggested number is ignored.
+            mockMvc.perform(post("/api/payments")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(String.format(
+                                    "{\"bookingId\": %d, \"amount\": 1, \"currency\": \"USD\", \"provider\": \"mock\"}",
+                                    bookingId)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data.amount").value(250.0));
+        } finally {
+            settingsService.updateSetting("BOOKING_PRICE_FREE_SESSION", "300");
+        }
     }
 
     @Test

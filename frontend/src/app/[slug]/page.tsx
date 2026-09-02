@@ -35,6 +35,7 @@ export async function generateMetadata({
       description: page.metaDescription,
       url: `${SITE_URL}/${page.slug}`,
       type: "website",
+      images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Gymholic" }],
     },
   };
 }

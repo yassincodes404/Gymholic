@@ -25,4 +25,10 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     boolean existsPurchasedProduct(@Param("userId") Long userId,
                                    @Param("productId") String productId,
                                    @Param("status") Order.Status status);
+
+    /** The user's order ids that contain the given product type (e.g. ACADEMY). */
+    @Query("SELECT DISTINCT oi.order.id FROM OrderItem oi " +
+           "WHERE oi.order.user.id = :userId AND LOWER(oi.productType) = LOWER(:productType)")
+    List<Long> findOrderIdsByUserIdAndProductType(@Param("userId") Long userId,
+                                                  @Param("productType") String productType);
 }

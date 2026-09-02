@@ -19,7 +19,7 @@ const SETTING_GROUPS: { title: string; description: string; fields: SettingField
     description: "Prices shown and charged on the website immediately — the server enforces them.",
     fields: [
       { key: "BOOKING_PRICE_STRATEGY_CALL", label: "45-Minute Strategy Call price (USD)" },
-      { key: "BOOKING_PRICE_OPEN_SESSION", label: "Open Time Session price (USD)" },
+      { key: "BOOKING_PRICE_FREE_SESSION", label: "Free Time Session (3 hours) price (USD)" },
       { key: "BOOKING_PRICE_IN_PERSON", label: "Private In-Person Consultation price (USD)" },
       { key: "BOOKING_CURRENCY", label: "Booking currency", hint: "Locked to USD — all charges are in US dollars" },
     ],
@@ -30,6 +30,7 @@ const SETTING_GROUPS: { title: string; description: string; fields: SettingField
     fields: [
       { key: "ACADEMY_MEMBERSHIP_PRICE", label: "Membership pre-purchase price (USD)" },
       { key: "ACADEMY_PRE_PURCHASE_ENABLED", label: "Allow pre-purchasing", type: "toggle" },
+      { key: "ACADEMY_MEMBERSHIP_CANCELLABLE", label: "Allow members to self-cancel (refund settled manually)", type: "toggle" },
     ],
   },
   {

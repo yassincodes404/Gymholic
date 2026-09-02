@@ -1,5 +1,13 @@
 # Gymholic Booking System — Reference
 
+> **Update (2026-09-02): checkout is now members-only.** The guest KV
+> booking/checkout engine and the simulated card form
+> (`frontend/src/components/checkout/PaymentForm.tsx`, `CheckoutForm.tsx`) were
+> removed — every payment (consultation bookings and store orders) now runs
+> through the backend gateway pipeline from the `/pay` page (Paymob, or the
+> mock provider in dev). The guest-engine sections below are historical; the
+> backend-engine sections still apply.
+>
 > Status: reflects the working tree as of 2026-08-27, including the booking-logic
 > hardening pass (slot generation, conflict parity, stale-pending expiry, webhook
 > containment, payment dedupe, authorization guards, past-time reschedule rejection,

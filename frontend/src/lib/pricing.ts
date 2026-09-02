@@ -6,8 +6,12 @@ export type BookingPricing = {
   strategyCall: number;
   inPerson: number;
   openSession: number;
+  /** Admin-managed price of the 3-hour free time session. */
+  freeSessionPrice?: number;
   academyMembershipPrice?: number;
   academyPrePurchaseEnabled?: boolean;
+  /** False removes the self-service cancel option from the account page. */
+  academyMembershipCancellable?: boolean;
   /** False hides the free 3-hour time session from the book page. */
   freeSessionEnabled?: boolean;
 };
@@ -16,7 +20,7 @@ export type BookingPricing = {
  * Live booking prices from GET /api/settings/pricing (public). These are the
  * admin-managed values (Admin → Settings); when the admin changes a price,
  * the website shows and charges the new amount immediately. All services are
- * paid, including the open time session.
+ * paid, including the 3-hour free time session.
  */
 export async function fetchBookingPricing(): Promise<BookingPricing | null> {
   try {
@@ -45,11 +49,8 @@ export function applyPricing(
     if (service.id === "in-person") {
       return { ...service, price: pricing.inPerson, currency: pricing.currency ?? service.currency };
     }
-    if (service.id === "discovery-call") {
-      return { ...service, price: pricing.openSession, currency: pricing.currency ?? service.currency };
-    }
     if (service.id === "free-session") {
-      return { ...service, price: 0, currency: pricing.currency ?? service.currency };
+      return { ...service, price: pricing.freeSessionPrice ?? 300, currency: pricing.currency ?? service.currency };
     }
     return service;
   });

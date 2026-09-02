@@ -5,6 +5,8 @@
   redirects back here with ?google=connected|error. Status: GET .../status.
   Paymob: GET/PUT /api/payments/admin/providers(/paymob) + POST .../paymob/test.
   Email: GET/PUT /api/admin/email(/brevo) + POST /api/admin/email/test.
+  Messaging (SMS + WhatsApp via Twilio): GET/PUT /api/admin/messaging(/twilio)
+  + POST /api/admin/messaging/test.
 */
 
 "use client";
@@ -14,6 +16,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { buildBackendApiUrl } from "@/lib/api";
 import { getStoredAuthToken } from "@/lib/auth";
+import { IconCalendar } from "@/components/account/icons";
 
 interface GoogleStatus {
   connected: boolean;
@@ -27,6 +30,8 @@ interface PaymobStatus {
   apiKeyMasked: string;
   integrationId: string;
   iframeId: string;
+  currency: string;
+  egpUsdRate: string;
   hmacSecretMasked: string;
 }
 
@@ -48,6 +53,22 @@ interface BrevoStatus {
 interface EmailStatus {
   activeProvider: "brevo" | "smtp";
   brevo: BrevoStatus;
+}
+
+interface TwilioInfo {
+  accountSid: string;
+  authTokenMasked: string;
+  smsFrom: string;
+  whatsappFrom: string;
+}
+
+interface MessagingStatus {
+  enabled: boolean;
+  configured: boolean;
+  active: boolean;
+  smsActive: boolean;
+  whatsappActive: boolean;
+  twilio: TwilioInfo;
 }
 
 const inputStyle =
@@ -92,6 +113,8 @@ function AdminIntegrations() {
   const [paymobIframeId, setPaymobIframeId] = useState("");
   const [paymobHmac, setPaymobHmac] = useState("");
   const [paymobEnabled, setPaymobEnabled] = useState(false);
+  const [paymobCurrency, setPaymobCurrency] = useState("");
+  const [paymobEgpRate, setPaymobEgpRate] = useState("");
   const [savingPaymob, setSavingPaymob] = useState(false);
   const [testingPaymob, setTestingPaymob] = useState(false);
   const [paymobTestResult, setPaymobTestResult] = useState<string | null>(null);
@@ -106,6 +129,18 @@ function AdminIntegrations() {
   const [testTo, setTestTo] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
   const [emailTestResult, setEmailTestResult] = useState<string | null>(null);
+
+  // Messaging — SMS + WhatsApp (Twilio)
+  const [messaging, setMessaging] = useState<MessagingStatus | null>(null);
+  const [twilioSid, setTwilioSid] = useState("");
+  const [twilioToken, setTwilioToken] = useState("");
+  const [twilioSmsFrom, setTwilioSmsFrom] = useState("");
+  const [twilioWhatsappFrom, setTwilioWhatsappFrom] = useState("");
+  const [messagingEnabled, setMessagingEnabled] = useState(false);
+  const [savingMessaging, setSavingMessaging] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [sendingTestSms, setSendingTestSms] = useState(false);
+  const [messagingTestResult, setMessagingTestResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (oauthResult === "connected") {
@@ -167,11 +202,32 @@ function AdminIntegrations() {
     }
   }, []);
 
+  const loadMessagingStatus = useCallback(async () => {
+    const token = getStoredAuthToken();
+    if (!token) return;
+    try {
+      const res = await fetch(buildBackendApiUrl("admin/messaging/status"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await res.json();
+      if (res.ok && payload?.success) {
+        const data = payload.data as MessagingStatus;
+        setMessaging(data);
+        setMessagingEnabled(data.enabled);
+        setTwilioSmsFrom(data.twilio?.smsFrom ?? "");
+        setTwilioWhatsappFrom(data.twilio?.whatsappFrom ?? "");
+      }
+    } catch {
+      // Messaging status is non-fatal for the page.
+    }
+  }, []);
+
   useEffect(() => {
     loadStatus();
     loadProviders();
     loadEmailStatus();
-  }, [loadStatus, loadProviders, loadEmailStatus]);
+    loadMessagingStatus();
+  }, [loadStatus, loadProviders, loadEmailStatus, loadMessagingStatus]);
 
   async function handleConnect() {
     setBusy(true);
@@ -227,6 +283,8 @@ function AdminIntegrations() {
           iframeId: paymobIframeId || null,
           hmacSecret: paymobHmac || null,
           enabled: paymobEnabled,
+          currency: paymobCurrency || null,
+          egpUsdRate: paymobEgpRate || null,
         }),
       });
       const payload = await res.json();
@@ -237,6 +295,8 @@ function AdminIntegrations() {
       setPaymobEnabled((payload.data as ProvidersStatus).paymob.enabled);
       setPaymobApiKey("");
       setPaymobHmac("");
+      setPaymobCurrency("");
+      setPaymobEgpRate("");
       setNotice("Paymob settings saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save Paymob settings.");
@@ -314,6 +374,62 @@ function AdminIntegrations() {
       setEmailTestResult(`✗ ${e instanceof Error ? e.message : "Test email failed."}`);
     } finally {
       setSendingTest(false);
+    }
+  }
+
+  async function saveMessaging() {
+    setSavingMessaging(true);
+    setError(null);
+    setNotice(null);
+    setMessagingTestResult(null);
+    try {
+      const token = getStoredAuthToken();
+      const res = await fetch(buildBackendApiUrl("admin/messaging/twilio"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          accountSid: twilioSid || null,
+          authToken: twilioToken || null,
+          smsFrom: twilioSmsFrom || null,
+          whatsappFrom: twilioWhatsappFrom || null,
+          enabled: messagingEnabled,
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.message || "Could not save the messaging settings.");
+      }
+      setMessaging(payload.data as MessagingStatus);
+      setTwilioSid("");
+      setTwilioToken("");
+      setNotice("Messaging settings saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save the messaging settings.");
+    } finally {
+      setSavingMessaging(false);
+    }
+  }
+
+  async function sendTestMessage() {
+    setSendingTestSms(true);
+    setMessagingTestResult(null);
+    try {
+      const token = getStoredAuthToken();
+      const res = await fetch(buildBackendApiUrl("admin/messaging/test"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ to: testPhone.trim() }),
+      });
+      const payload = await res.json();
+      setMessagingTestResult(
+        res.ok && payload?.success
+          ? `✓ ${payload?.message || "Test message sent."}`
+          : `✗ ${payload?.message || "Test message failed."}`
+      );
+    } catch (e) {
+      setMessagingTestResult(`✗ ${e instanceof Error ? e.message : "Test message failed."}`);
+    } finally {
+      setSendingTestSms(false);
     }
   }
 
@@ -452,6 +568,133 @@ function AdminIntegrations() {
         </div>
       </section>
 
+      {/* ---------- Messaging: SMS + WhatsApp ---------- */}
+      <section className="mb-12">
+        <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Messaging — SMS &amp; WhatsApp</h2>
+
+        <div className="max-w-xl bg-surface border border-paper/10 rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <span className="inline-flex items-center justify-center h-10 w-16 rounded-md bg-emerald-600 text-white text-xs font-bold">
+              Twilio
+            </span>
+            <div>
+              <h3 className="font-semibold">Twilio</h3>
+              <p className="text-xs text-paper/50">Booking confirmations, receipts &amp; reminders by SMS and WhatsApp</p>
+            </div>
+            <span
+              className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${
+                messaging?.active
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : messaging?.configured
+                    ? "bg-amber-500/15 text-amber-400"
+                    : "bg-paper/10 text-paper/60"
+              }`}
+            >
+              {messaging?.active
+                ? "● Active"
+                : messaging?.configured
+                  ? "Configured — disabled"
+                  : "○ Not configured"}
+            </span>
+          </div>
+
+          <p className="text-sm text-paper/60 mb-5">
+            Connect a Twilio account (twilio.com → Account Info) to text clients
+            on the moments that matter — payment received, session confirmed,
+            rescheduled, cancelled and reminders. Clients with a phone number on
+            their profile get SMS and/or WhatsApp; without a number they simply
+            stay on email. Leave a field empty to keep its saved value.
+          </p>
+
+          <div className="space-y-4">
+            <label className="block text-sm">
+              <span className="text-paper/75 block mb-1.5">Account SID</span>
+              <input
+                value={twilioSid}
+                onChange={(e) => setTwilioSid(e.target.value)}
+                placeholder={messaging?.twilio.accountSid || "AC…"}
+                className={inputStyle}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-paper/75 block mb-1.5">Auth token</span>
+              <input
+                type="password"
+                value={twilioToken}
+                onChange={(e) => setTwilioToken(e.target.value)}
+                placeholder={messaging?.twilio.authTokenMasked || "••••"}
+                className={inputStyle}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="text-paper/75 block mb-1.5">SMS from</span>
+                <input
+                  value={twilioSmsFrom}
+                  onChange={(e) => setTwilioSmsFrom(e.target.value)}
+                  placeholder="+14155238886"
+                  className={inputStyle}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-paper/75 block mb-1.5">WhatsApp from</span>
+                <input
+                  value={twilioWhatsappFrom}
+                  onChange={(e) => setTwilioWhatsappFrom(e.target.value)}
+                  placeholder="+14155238886"
+                  className={inputStyle}
+                />
+              </label>
+            </div>
+            <p className="text-xs text-paper/50">
+              Channels go live as soon as their sender is set: SMS uses your
+              Twilio number (or alphanumeric sender ID); WhatsApp uses a
+              WhatsApp-enabled Twilio number.
+            </p>
+            <label className="flex items-center gap-2 text-sm text-paper/75">
+              <input
+                type="checkbox"
+                checked={messagingEnabled}
+                onChange={(e) => setMessagingEnabled(e.target.checked)}
+                className="h-4 w-4 accent-white"
+              />
+              Enabled — send SMS &amp; WhatsApp messages
+            </label>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-6">
+            <button
+              onClick={saveMessaging}
+              disabled={savingMessaging}
+              className="bg-orange text-void font-semibold rounded-lg px-4 py-2 text-sm hover:bg-orange/90 disabled:opacity-50"
+            >
+              {savingMessaging ? "Saving…" : "Save Messaging Settings"}
+            </button>
+          </div>
+
+          <div className="border-t border-paper/10 mt-6 pt-5">
+            <p className="text-sm text-paper/75 mb-3">Send a test message</p>
+            <div className="flex flex-wrap gap-3">
+              <input
+                type="tel"
+                value={testPhone}
+                onChange={(e) => setTestPhone(e.target.value)}
+                placeholder="+20 100 000 0000"
+                className={`${inputStyle} flex-1 min-w-48`}
+              />
+              <button
+                onClick={sendTestMessage}
+                disabled={sendingTestSms || !testPhone.trim()}
+                className="border border-paper/15 rounded-lg px-4 py-2 text-sm hover:bg-paper/10 disabled:opacity-50"
+              >
+                {sendingTestSms ? "Sending…" : "Send Test"}
+              </button>
+            </div>
+            {messagingTestResult && <p className="text-sm mt-3 text-paper/75">{messagingTestResult}</p>}
+          </div>
+        </div>
+      </section>
+
       {/* ---------- Payment providers ---------- */}
       <section className="mb-12">
         <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Payment providers</h2>
@@ -516,6 +759,30 @@ function AdminIntegrations() {
                     placeholder={providers?.paymob.iframeId || "e.g. 789012"}
                     className={inputStyle}
                   />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-paper/75 block mb-1.5">Charged currency (Egypt)</span>
+                  <input
+                    value={paymobCurrency}
+                    onChange={(e) => setPaymobCurrency(e.target.value.toUpperCase())}
+                    placeholder={providers?.paymob.currency || "EGP"}
+                    className={inputStyle}
+                  />
+                  <span className="text-xs text-paper/40 block mt-1">
+                    The currency this Paymob account collects. Blank = order currency (USD).
+                  </span>
+                </label>
+                <label className="block text-sm">
+                  <span className="text-paper/75 block mb-1.5">EGP per USD rate</span>
+                  <input
+                    value={paymobEgpRate}
+                    onChange={(e) => setPaymobEgpRate(e.target.value)}
+                    placeholder={providers?.paymob.egpUsdRate || "48.0"}
+                    className={inputStyle}
+                  />
+                  <span className="text-xs text-paper/40 block mt-1">
+                    Converts USD order totals when the charged currency differs (e.g. $49 → EGP 2,352).
+                  </span>
                 </label>
               </div>
               <label className="block text-sm">
@@ -606,7 +873,13 @@ function AdminIntegrations() {
         <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Calendar &amp; meetings</h2>
         <div className="max-w-xl bg-surface border border-paper/10 rounded-xl p-8">
           <div className="flex items-center gap-3 mb-6">
-            <span className="text-2xl">📅</span>
+            <span
+              className="inline-flex items-center justify-center h-11 w-11 rounded-xl"
+              style={{ background: "rgba(255,106,0,0.10)", color: "var(--orange)" }}
+              aria-hidden
+            >
+              <IconCalendar width={22} height={22} />
+            </span>
             <div>
               <h3 className="font-semibold text-lg">Google Calendar &amp; Meet</h3>
               <p className="text-xs text-paper/50">

@@ -13,6 +13,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findByBookingId(Long bookingId);
 
+    List<Payment> findByOrderId(Long orderId);
+
     Optional<Payment> findByProviderTransactionId(String providerTransactionId);
 
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(p.amount), 0) FROM Payment p WHERE p.status = :status")

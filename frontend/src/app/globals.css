@@ -219,6 +219,36 @@ h3,
   }
 }
 
+/* ---- Secure viewer overlay: premium full-screen entrance ---- */
+@keyframes viewer-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.viewer-overlay {
+  animation: viewer-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes viewer-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.viewer-loading-bar {
+  animation: viewer-pulse 1.4s ease-in-out infinite;
+}
+
 .marquee-wordmark {
   font-family: var(--font-display, "Clash Display", sans-serif);
   color: transparent;
@@ -386,6 +416,287 @@ h3,
 .field-input:focus {
   border-color: var(--orange) !important;
   outline: none;
+}
+
+/* ---- Booking tiles (calendar days, time slots): the same tactile motion
+   language as the hero — a quick lift on hover, a press-down on click,
+   and a small pop when a tile becomes selected. Hover/press only on
+   hover-capable pointers (touch relies on the instant :active). ---- */
+.booking-tile {
+  will-change: transform;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+
+@media (hover: hover) {
+  .booking-tile:not(:disabled):hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 0 0 1.5px var(--orange);
+  }
+}
+
+.booking-tile:not(:disabled):active {
+  transform: scale(0.92);
+  transition-duration: 0.08s;
+}
+
+@keyframes tile-pop {
+  0% { transform: scale(0.86); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.booking-tile-selected {
+  animation: tile-pop 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Slot grid / calendar body entrance after a date pick — same rise the
+   secure viewer uses, so the booking flow feels cut from the same cloth. */
+.booking-rise {
+  animation: viewer-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Service selection cards (Book Your Session): blueprint-card's lift
+   plus an orange edge and a nudging arrow, echoing the hero CTA. ---- */
+.service-card {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+@media (hover: hover) {
+  .service-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(255, 106, 0, 0.55) !important;
+    box-shadow: 0 18px 40px -18px rgba(255, 106, 0, 0.35);
+  }
+
+  .service-card:hover .service-card-cta {
+    background: var(--orange);
+    color: var(--void);
+    gap: 0.8rem;
+  }
+
+  .service-card:hover .service-card-arrow {
+    transform: translateX(4px);
+  }
+}
+
+.service-card:active {
+  transform: translateY(-2px) scale(0.985);
+}
+
+.service-card-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1.5px solid var(--orange);
+  color: var(--orange);
+  border-radius: 999px;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.service-card-arrow {
+  display: inline-block;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Account tab chips: horizontal segmented control for small screens.
+   The active chip pops (tile-pop) and tints orange; the strip scrolls
+   edge-to-edge with no visible scrollbar. ---- */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  color: rgba(245, 241, 232, 0.65);
+  background: rgba(245, 241, 232, 0.04);
+  border: 1px solid rgba(245, 241, 232, 0.1);
+  cursor: pointer;
+  transition:
+    color 0.22s ease,
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tab-chip:active {
+  transform: scale(0.94);
+}
+
+.tab-chip-active {
+  color: var(--orange);
+  background: rgba(255, 106, 0, 0.12);
+  border-color: rgba(255, 106, 0, 0.45);
+  font-weight: 600;
+  animation: tile-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Desktop sidebar rows: a small slide on hover, echoing the card lifts. */
+.account-row {
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+@media (hover: hover) {
+  .account-row:hover {
+    transform: translateX(3px);
+  }
+}
+
+/* ---- Admin design system: shared buttons, cards, chips and nav links so
+   every admin page speaks the same visual language (and survives mobile). ---- */
+.admin-card {
+  background: var(--surface);
+  border: 1px solid rgba(245, 241, 232, 0.1);
+  border-radius: 0.85rem;
+}
+
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.5rem 1.15rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.admin-btn:active {
+  transform: scale(0.95);
+}
+
+.admin-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-btn-primary {
+  background: var(--orange);
+  color: var(--void);
+}
+
+@media (hover: hover) {
+  .admin-btn-primary:hover {
+    background: #ff7d1f;
+    transform: translateY(-1px);
+  }
+}
+
+.admin-btn-ghost {
+  background: transparent;
+  color: var(--paper);
+  border: 1px solid rgba(245, 241, 232, 0.18);
+}
+
+@media (hover: hover) {
+  .admin-btn-ghost:hover {
+    background: rgba(245, 241, 232, 0.08);
+  }
+}
+
+.admin-btn-danger {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+@media (hover: hover) {
+  .admin-btn-danger:hover {
+    background: rgba(248, 113, 113, 0.12);
+  }
+}
+
+.admin-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.6rem;
+  color: rgba(245, 241, 232, 0.65);
+  border: 1px solid rgba(245, 241, 232, 0.14);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.admin-icon-btn:hover {
+  color: var(--paper);
+  background: rgba(245, 241, 232, 0.07);
+}
+
+.admin-icon-btn:active {
+  transform: scale(0.92);
+}
+
+.admin-icon-btn--danger:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.admin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.65rem;
+  font-size: 0.875rem;
+  color: rgba(245, 241, 232, 0.6);
+  white-space: nowrap;
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.admin-nav-link:hover {
+  color: var(--paper);
+  background: rgba(245, 241, 232, 0.06);
+}
+
+.admin-nav-link-active {
+  color: var(--orange);
+  background: rgba(255, 106, 0, 0.12);
+}
+
+.admin-nav-link-active:hover {
+  color: var(--orange);
+  background: rgba(255, 106, 0, 0.14);
 }
 
 @media (prefers-reduced-motion: reduce) {

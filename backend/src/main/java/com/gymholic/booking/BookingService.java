@@ -56,6 +56,7 @@ public class BookingService {
     private final CalendarService calendarService;
     private final NotificationService notificationService;
     private final com.gymholic.calendar.ZoomService zoomService;
+    private final com.gymholic.payment.RefundRepository refundRepository;
 
     /** First configured frontend origin — used for links inside emails. */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
@@ -209,15 +210,8 @@ public class BookingService {
         log.info("Booking created: ID={}, serviceType={}, startTime={} (expert: {}, client: {})",
                  saved.getId(), saved.getServiceType(), saved.getStartTime(), expertZone, clientZone);
 
-        if (freeSession) {
-            // Free bookings skip payment entirely: straight to CONFIRMED via
-            // the standard pipeline (Meet/Calendar + client confirmation
-            // email). No "awaiting payment" admin email, no Payment row.
-            return confirmBooking(saved.getId());
-        }
-
         // Notify the admin/expert about the new (pending payment) booking
-        String[] price = resolveBookingPrice(saved.getNotes());
+        String[] price = resolveBookingPrice(saved);
         notificationService.sendAdminNewBooking(
             adminNotifyEmail(saved.getTrainer().getEmail()),
             saved.getClient().getFirstName() + " " + saved.getClient().getLastName(),
@@ -281,12 +275,20 @@ public class BookingService {
     }
 
     /**
-     * Booking-aware price resolution: the free time session is always free,
-     * everything else resolves from its notes as before.
+     * Booking-aware price resolution: the free time session carries its own
+     * admin-managed price (BOOKING_PRICE_FREE_SESSION), everything else
+     * resolves from its notes as before.
      */
     public String[] resolveBookingPrice(Booking booking) {
         if (booking != null && booking.getServiceType() == BookingServiceType.FREE_SESSION) {
-            return new String[]{"0", "USD"};
+            try {
+                var all = settingsService.getAllSettings();
+                return new String[]{
+                    all.getOrDefault("BOOKING_PRICE_FREE_SESSION", "300"),
+                    all.getOrDefault("BOOKING_CURRENCY", "USD")};
+            } catch (Exception e) {
+                return new String[]{"300", "USD"};
+            }
         }
         return resolveBookingPrice(booking == null ? null : booking.getNotes());
     }
@@ -414,11 +416,20 @@ public class BookingService {
         return mapToDto(saved);
     }
 
+    /**
+     * Cancellation policy: a PAID booking belongs to the client — the team
+     * can never cancel it out from under them. The client may cancel free
+     * of charge up to 12 hours before the session; the payment is then
+     * flagged as a PENDING refund for the team to settle with the gateway.
+     */
+    static final java.time.Duration FREE_CANCELLATION_WINDOW = java.time.Duration.ofHours(12);
+
     @Transactional
     public BookingDto cancelBooking(Long id, String reason) {
         Booking booking = bookingRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
-        assertCanAccess(booking, requireCurrentUser());
+        User current = requireCurrentUser();
+        assertCanAccess(booking, current);
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
             // Idempotent
@@ -429,11 +440,31 @@ public class BookingService {
             throw new BadRequestException("Only pending or confirmed bookings can be cancelled");
         }
 
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            // Paid booking: the client decides, never the team.
+            if (!current.getId().equals(booking.getClient().getId())) {
+                throw new BadRequestException(
+                    "Paid bookings belong to the client — they cancel them from their account. "
+                        + "If there's a problem, agree a refund with the client and settle it from Admin → Refunds.");
+            }
+            if (Instant.now().isAfter(booking.getStartTime().minus(FREE_CANCELLATION_WINDOW))) {
+                throw new BadRequestException(
+                    "Free cancellation closed — bookings can be cancelled up to 12 hours before the session. "
+                        + "Past that, contact us and we'll find a solution.");
+            }
+        }
+
         BookingStatus oldStatus = booking.getStatus();
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancellationReason(reason);
-        
+
         Booking saved = bookingRepository.save(booking);
+
+        // Money side of the policy: a cancelled paid booking records a
+        // refund-due entry the team settles with the gateway.
+        if (oldStatus == BookingStatus.CONFIRMED) {
+            recordRefundDue(saved, reason);
+        }
 
         if (oldStatus == BookingStatus.CONFIRMED && saved.getExternalEventId() != null) {
             // Cancel the Google Calendar event
@@ -453,6 +484,21 @@ public class BookingService {
         );
 
         return mapToDto(saved);
+    }
+
+    /** Records the money owed after a client cancels a paid booking. */
+    private void recordRefundDue(Booking booking, String reason) {
+        paymentRepository.findByBookingId(booking.getId()).stream()
+            .filter(p -> p.getStatus() == PaymentStatus.COMPLETED)
+            .max(java.util.Comparator.comparing(Payment::getId))
+            .ifPresent(payment -> refundRepository.save(
+                com.gymholic.payment.entity.Refund.builder()
+                    .payment(payment)
+                    .amount(payment.getAmount())
+                    .reason("Client cancellation (free window) — " + (reason == null || reason.isBlank() ? "no reason given" : reason))
+                    .status(PaymentStatus.PENDING)
+                    .build()));
+        log.info("Booking {} cancelled by client — refund due recorded", booking.getId());
     }
 
     @Transactional

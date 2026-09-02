@@ -5,6 +5,9 @@ app:
     # Legacy auth tests exercise the direct-to-tokens flow; the challenge
     # flow has its own dedicated test class.
     email-verification-required: false
+  payments:
+    # Registers the mock provider so payment flows are exercisable in tests.
+    mock-enabled: true
 
 spring:
   datasource:

@@ -73,9 +73,11 @@ public class SecurityConfig {
                 // Store browsing works for guests; PDF streaming and the library
                 // stay authenticated (default rule below).
                 .requestMatchers(HttpMethod.GET, "/api/store/categories", "/api/store/products", "/api/store/products/*", "/api/store/products/*/cover").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/*/avatar").permitAll() // Public profile pictures (versioned URLs)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                // No payments, orders, cart or bookings until the email is confirmed
-                .requestMatchers("/api/payments/**", "/api/orders/**", "/api/cart/**", "/api/bookings/**")
+                // No payments, orders, cart, bookings or membership until the
+                // email is confirmed
+                .requestMatchers("/api/payments/**", "/api/orders/**", "/api/cart/**", "/api/bookings/**", "/api/membership/**")
                     .hasAuthority("EMAIL_VERIFIED")
                 // Admin endpoints require ADMIN role
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")

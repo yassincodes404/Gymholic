@@ -21,6 +21,10 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   role: "ADMIN" | "TRAINER" | "CLIENT";
+  /** Account phone (from GET /users/me only — auth responses don't carry it). */
+  phone?: string;
+  /** Profile picture path, versioned for cache-busting (e.g. /api/users/3/avatar?v=17). */
+  avatarUrl?: string;
 }
 
 interface AuthResponse {
@@ -70,6 +74,31 @@ export function logout() {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   window.dispatchEvent(new CustomEvent(AUTH_CHANGED_EVENT));
+}
+
+/** Patches the persisted user (e.g. avatarUrl after a picture upload) so
+ *  every header/sidebar re-renders via AUTH_CHANGED_EVENT. */
+export function updateStoredUser(patch: Partial<AuthUser>): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const current = getStoredUser();
+  if (!current) return null;
+  const next = { ...current, ...patch };
+  window.localStorage.setItem(USER_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent(AUTH_CHANGED_EVENT));
+  return next;
+}
+
+/**
+ * The backend stores the avatar as a server path ("/api/users/3/avatar?v=9")
+ * but the frontend talks to the API cross-origin, so relative paths must be
+ * resolved against the backend base before they can render in an <img>.
+ * The stored path already carries the "/api" prefix that buildBackendApiUrl
+ * appends — strip it to avoid a doubled segment.
+ */
+export function resolveAvatarUrl(path?: string | null): string | undefined {
+  if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
+  return buildBackendApiUrl(path.replace(/^\/?(api\/)?/, ""));
 }
 
 function persistSession(data: AuthResponse): AuthUser {
@@ -228,5 +257,7 @@ export async function fetchCurrentUser(token: string | null): Promise<AuthUser |
     firstName: d.firstName,
     lastName: d.lastName,
     role: d.role,
+    phone: typeof d.phone === "string" ? d.phone : undefined,
+    avatarUrl: resolveAvatarUrl(typeof d.profileImageUrl === "string" ? d.profileImageUrl : undefined),
   };
 }

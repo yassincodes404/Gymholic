@@ -7,6 +7,7 @@ export function TimeSlotPicker({
   error = null,
   selectedTime,
   onSelect,
+  highlightTime = null,
 }: {
   /** Time labels to offer — live backend slots when signed in, template slots for guests. */
   times?: string[];
@@ -16,6 +17,8 @@ export function TimeSlotPicker({
   error?: string | null;
   selectedTime: string | null;
   onSelect: (time: string) => void;
+  /** The auto-picked "best option" (first upcoming slot) gets a tag. */
+  highlightTime?: string | null;
 }) {
   return (
     <div>
@@ -31,7 +34,7 @@ export function TimeSlotPicker({
       ) : times.length === 0 ? (
         <p className="text-sm opacity-60">No open slots on this day — try another date.</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div key={times.join("|")} className="booking-rise grid grid-cols-2 sm:grid-cols-3 gap-3">
           {times.map((time) => {
             const isBooked = disabledTimes.includes(time);
             const isSelected = selectedTime === time;
@@ -41,7 +44,7 @@ export function TimeSlotPicker({
                 type="button"
                 disabled={isBooked}
                 onClick={() => onSelect(time)}
-                className="rounded-lg px-4 py-3 text-sm flex flex-col items-center gap-1 transition-colors"
+                className={`booking-tile ${isSelected ? "booking-tile-selected" : ""} rounded-lg md:rounded-xl px-4 py-3 md:py-3.5 text-sm md:text-base flex flex-col items-center gap-1`}
                 style={{
                   background: isSelected ? "var(--orange)" : "rgba(245,241,232,0.06)",
                   color: isSelected ? "var(--void)" : "var(--paper)",
@@ -50,9 +53,21 @@ export function TimeSlotPicker({
                 }}
               >
                 <span>{time}</span>
-                <span className="text-[10px] uppercase tracking-widest opacity-70">
-                  {isBooked ? "Fully Booked" : "Available"}
-                </span>
+                {time === highlightTime && !isBooked ? (
+                  <span
+                    className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full"
+                    style={{
+                      background: isSelected ? "rgba(10,10,10,0.25)" : "var(--orange-dim)",
+                      color: isSelected ? "var(--void)" : "var(--orange)",
+                    }}
+                  >
+                    Best option
+                  </span>
+                ) : (
+                  <span className="text-[10px] uppercase tracking-widest opacity-70">
+                    {isBooked ? "Fully Booked" : "Available"}
+                  </span>
+                )}
               </button>
             );
           })}

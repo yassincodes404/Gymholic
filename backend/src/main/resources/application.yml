@@ -5,9 +5,13 @@ app:
     iframe-id: ${PAYMOB_IFRAME_ID:}
     hmac-secret: ${PAYMOB_HMAC_SECRET:}
     public-key: ${PAYMOB_PUBLIC_KEY:}
+  payments:
     # Optional override of the currency sent to Paymob (e.g. EGP for accounts
     # without USD collection). Empty = use the order currency (USD).
     currency: ${PAYMOB_CURRENCY:}
+    # EGP per USD — converts USD amounts whenever the currency override above
+    # is active, so a $49 order charges the correct EGP value, never EGP 49.
+    egp-usd-rate: ${PAYMOB_EGP_USD_RATE:48.0}
   encryption:
     secret: ${ENCRYPTION_SECRET:fallback_secret_must_change_in_prod}
   jwt:
@@ -33,6 +37,12 @@ app:
     api-key: ${BREVO_API_KEY:}
     sender-email: ${BREVO_SENDER_EMAIL:}
     sender-name: ${BREVO_SENDER_NAME:Gymholic}
+  twilio:
+    # SMS + WhatsApp notifications (Admin → Integrations can also set these).
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    sms-from: ${TWILIO_SMS_FROM:}
+    whatsapp-from: ${TWILIO_WHATSAPP_FROM:}
   auth:
     # One-time email codes on sign-up / sign-in; verified accounts are
     # required before any payment, order, cart or booking goes through.

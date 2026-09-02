@@ -40,7 +40,9 @@ public class PaymentProviderAdminController {
             request.getIframeId(),
             request.getHmacSecret(),
             request.getPublicKey(),
-            request.getEnabled());
+            request.getEnabled(),
+            request.getCurrency(),
+            request.getEgpUsdRate());
         return ResponseEntity.ok(ApiResponse.success("Paymob settings saved", buildStatus()));
     }
 
@@ -74,6 +76,8 @@ public class PaymentProviderAdminController {
                 .hmacSecretMasked(mask(credentials.hmacSecret()))
                 .publicKeyMasked(credentials.publicKey() == null || credentials.publicKey().isBlank()
                     ? "" : mask(credentials.publicKey()))
+                .currency(configService.getPaymobCurrencyOverride())
+                .egpUsdRate(configService.getEgpUsdRate().toPlainString())
                 .build())
             .stripe(Map.of("available", false, "comingSoon", true))
             .build();

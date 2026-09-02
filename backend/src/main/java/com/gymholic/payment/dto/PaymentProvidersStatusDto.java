@@ -40,5 +40,9 @@ public class PaymentProvidersStatusDto {
         private String iframeId;
         private String hmacSecretMasked;
         private String publicKeyMasked;
+        /** Local currency the account collects ("EGP" for Egypt; blank = USD). */
+        private String currency;
+        /** EGP per USD conversion rate used when currency differs from USD. */
+        private String egpUsdRate;
     }
 }

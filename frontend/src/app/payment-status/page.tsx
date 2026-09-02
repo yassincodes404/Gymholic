@@ -52,8 +52,8 @@ function PaymentStatus() {
                   {currency === "EGP" ? `${amountCents.toLocaleString()} EGP` : `$${amountCents.toLocaleString()}`} paid.{" "}
                 </>
               ) : null}
-              Your booking is being confirmed — you&apos;ll get a confirmation email
-              with your calendar invite and meeting link within a minute.
+              Your purchase is being confirmed — you&apos;ll get a confirmation email
+              within a minute (bookings include the calendar invite and meeting link).
             </p>
           </>
         ) : pending ? (

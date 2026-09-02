@@ -56,13 +56,14 @@ export default function TermsPage() {
             will be agreed upon between the expert and client prior to booking.
           </p>
           <h3 className="text-xl font-medium mb-3">
-            Open Time Session
+            Free Time Session
           </h3>
           <p className="mb-6">
-            The Open Time Session is an online session held over Google Meet
-            with open time — you choose any available slot in the calendar. It
-            is a paid session at the rate shown at booking, and it may be
-            rescheduled or cancelled under the policy above.
+            The Free Time Session is a 3-hour online session held over Google
+            Meet — you choose any available open block in the calendar, limited
+            to one session per day. It is a paid session at the rate shown at
+            booking, and it may be rescheduled or cancelled under the policy
+            above.
           </p>
           <h3 className="text-xl font-medium mb-3">
             Reminders

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCart, useCartItems } from "./CartContext";
 import { BlueprintCover } from "@/components/blueprints/BlueprintCover";
 import { MagneticButton } from "@/components/motion/MagneticButton";
+import { IconPdf, IconGraduationCap } from "@/components/account/icons";
 
 export function CartDrawer() {
   const { isOpen, close, subtotal, removeItem } = useCart();
@@ -55,11 +56,11 @@ export function CartDrawer() {
                       <BlueprintCover lines={item.coverLines} size="mini" />
                     ) : (
                       <div
-                        className="w-full h-full rounded-lg flex items-center justify-center text-2xl"
-                        style={{ background: "rgba(255,106,0,0.12)", border: "1px solid rgba(255,106,0,0.25)" }}
+                        className="w-full h-full rounded-lg flex items-center justify-center"
+                        style={{ background: "rgba(255,106,0,0.12)", border: "1px solid rgba(255,106,0,0.25)", color: "var(--orange)" }}
                         aria-hidden
                       >
-                        {item.productType === "ACADEMY" ? "🎓" : "📄"}
+                        {item.productType === "ACADEMY" ? <IconGraduationCap width={26} height={26} /> : <IconPdf width={26} height={26} />}
                       </div>
                     )}
                   </div>

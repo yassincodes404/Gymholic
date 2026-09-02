@@ -17,14 +17,21 @@ export const metadata: Metadata = {
     type: "website",
     url: SITE_URL,
     title: "Gymholic — Gym Consulting for Egypt, UAE & the GCC",
-    description:
-      "Gym business consulting that moves the numbers: retention, revenue, operations and setup. Egypt, UAE, GCC & worldwide.",
+    description: "Gym business consulting that moves with you.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Gymholic — gym business consulting that moves with you",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Gymholic — Gym Consulting",
-    description:
-      "Gym business consulting that moves the numbers: retention, revenue, operations and setup.",
+    description: "Gym business consulting that moves with you.",
+    images: ["/og-image.png"],
   },
 };
 

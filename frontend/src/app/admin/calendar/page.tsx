@@ -1,5 +1,7 @@
 /*!
   GymHolic Admin Calendar — month grid of real bookings (GET /api/bookings/trainer/{id}).
+  Cancelled bookings are filtered out at load: the calendar shows what is
+  actionable (pending / confirmed / completed / no-show), not noise.
 */
 
 "use client";
@@ -7,6 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { adminFetch, getAdminUserId, type TrainerBooking } from "@/lib/adminApi";
+import { IconChevronLeft, IconChevronRight } from "@/components/account/icons";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -41,14 +44,20 @@ export default function AdminCalendarPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Cancelled bookings are noise on a planning surface — drop them entirely.
+  const visibleBookings = useMemo(
+    () => bookings.filter((b) => b.status !== "CANCELLED"),
+    [bookings]
+  );
+
   const byDay = useMemo(() => {
     const map: Record<string, TrainerBooking[]> = {};
-    for (const b of bookings) {
+    for (const b of visibleBookings) {
       const key = dayKey(new Date(b.startTime));
       (map[key] ??= []).push(b);
     }
     return map;
-  }, [bookings]);
+  }, [visibleBookings]);
 
   // Build the month grid: start on Monday, always 42 cells.
   const cells = useMemo(() => {
@@ -74,18 +83,23 @@ export default function AdminCalendarPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-            className="border border-paper/15 rounded-lg px-3 py-1.5 text-sm hover:bg-paper/10">
-            ←
+            className="admin-icon-btn"
+            aria-label="Previous month"
+          >
+            <IconChevronLeft width={16} height={16} />
           </button>
           <button
             onClick={() => setCursor(new Date())}
-            className="border border-paper/15 rounded-lg px-3 py-1.5 text-sm hover:bg-paper/10">
+            className="admin-btn admin-btn-ghost !py-1.5"
+          >
             Today
           </button>
           <button
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-            className="border border-paper/15 rounded-lg px-3 py-1.5 text-sm hover:bg-paper/10">
-            →
+            className="admin-icon-btn"
+            aria-label="Next month"
+          >
+            <IconChevronRight width={16} height={16} />
           </button>
         </div>
       </div>
@@ -109,7 +123,7 @@ export default function AdminCalendarPage() {
                   <button
                     key={key}
                     onClick={() => setSelected(key)}
-                    className={`min-h-[72px] rounded-lg border p-1.5 text-left align-top transition-colors ${
+                    className={`min-h-11 sm:min-h-[72px] rounded-lg border p-1 sm:p-1.5 text-left align-top transition-colors ${
                       selected === key ? "border-paper/30 bg-paper/10" : "border-paper/10 hover:bg-paper/10"
                     } ${inMonth ? "" : "opacity-30"}`}
                   >
@@ -117,16 +131,17 @@ export default function AdminCalendarPage() {
                       {d.getDate()}
                     </span>
                     <div className="mt-1 space-y-1">
+                      {/* Phones: dots only — the details live in the day panel */}
                       {dayBookings.slice(0, 3).map((b) => (
                         <div key={b.id} className="flex items-center gap-1">
-                          <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[b.status]}`} />
-                          <span className="text-[10px] text-paper/75 truncate">
+                          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${STATUS_DOT[b.status]}`} />
+                          <span className="hidden sm:inline text-[10px] text-paper/75 truncate">
                             {new Date(b.startTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} {b.clientName.split(" ")[0]}
                           </span>
                         </div>
                       ))}
                       {dayBookings.length > 3 && (
-                        <span className="text-[10px] text-paper/50">+{dayBookings.length - 3} more</span>
+                        <span className="hidden sm:block text-[10px] text-paper/50">+{dayBookings.length - 3} more</span>
                       )}
                     </div>
                   </button>

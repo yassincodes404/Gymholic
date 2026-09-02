@@ -297,7 +297,7 @@ export const faqs = [
   },
   {
     q: "Is the consultation free or paid?",
-    a: "All sessions are paid, including the Open Time Session — an online Google Meet session where you pick any available slot. Prices are listed on the booking page at checkout.",
+    a: "All sessions are paid, including the 3-hour Free Time Session — an online Google Meet session where you pick any available open block. Prices are listed on the booking page at checkout.",
   },
   {
     q: "What information should I prepare before the call?",

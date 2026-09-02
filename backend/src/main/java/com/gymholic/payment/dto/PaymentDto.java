@@ -17,8 +17,13 @@ public class PaymentDto {
 
     private Long id;
     private Long bookingId;
+    private Long orderId;
     private BigDecimal amount;
     private String currency;
+    /** What the gateway will actually collect (converted when it can't
+     *  charge the order currency — e.g. USD orders paid in EGP). */
+    private BigDecimal payableAmount;
+    private String payableCurrency;
     private PaymentStatus status;
     private String providerName;
     private String checkoutUrl;

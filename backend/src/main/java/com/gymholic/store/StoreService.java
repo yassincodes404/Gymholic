@@ -132,7 +132,9 @@ public class StoreService {
 
     /**
      * The signed-in user's library: every free active product plus every
-     * purchased (PAID order item) active product.
+     * purchased (PAID order item) product — purchased ones stay accessible
+     * even when the product is later archived; free ones are active-only
+     * because there is no purchase to honour.
      */
     @Transactional(readOnly = true)
     public List<LibraryItemDto> getLibrary(Long userId) {
@@ -143,7 +145,7 @@ public class StoreService {
         for (Product free : productRepository.findByActiveTrueAndFreeTrue()) {
             bySlug.put(free.getSlug(), free);
         }
-        for (Product owned : productRepository.findBySlugInAndActiveTrue(purchased)) {
+        for (Product owned : productRepository.findBySlugIn(purchased)) {
             bySlug.put(owned.getSlug(), owned);
         }
 
@@ -299,6 +301,25 @@ public class StoreService {
         productRepository.save(product);
     }
 
+    /**
+     * Permanent delete — removes the product row AND its stored cover/PDF
+     * files. Order history survives: order items snapshot the title and
+     * price, so past receipts don't reference this table. This is not
+     * undoable; the admin UI confirms before calling it.
+     */
+    @Transactional
+    public void purgeProduct(Long id) {
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        if (product.getCoverFile() != null) {
+            productFileRepository.deleteById(product.getCoverFile().getId());
+        }
+        if (product.getPdfFile() != null) {
+            productFileRepository.deleteById(product.getPdfFile().getId());
+        }
+        productRepository.delete(product);
+    }
+
     // ---- Admin: file uploads ----
 
     /** Stores an image cover (image/*, ≤5MB), links it and replaces the previous file. */
@@ -434,6 +455,7 @@ public class StoreService {
             .featured(product.isFeatured())
             .hasCover(product.getCoverFile() != null)
             .hasPdf(product.getPdfFile() != null)
+            .active(product.isActive())
             .category(toCategoryRef(product))
             .build();
     }

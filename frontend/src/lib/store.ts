@@ -68,7 +68,9 @@ let productsCache: StoreProduct[] | null = null;
 let productsPromise: Promise<StoreProduct[]> | null = null;
 let storeFallback = false;
 
-/** True when the last load couldn't reach the real store (mock data in use). */
+/** True when the last load couldn't reach the real store (fetch failed). An
+ *  empty-but-successful store response is NOT a fallback — it's a real
+ *  (empty) catalogue and should render as "no Blueprints yet". */
 export function isStoreFallback(): boolean {
   return storeFallback;
 }
@@ -89,8 +91,8 @@ export async function fetchStoreCategories(): Promise<StoreCategory[]> {
   if (categoriesCache) return categoriesCache;
   if (!categoriesPromise) {
     categoriesPromise = getJson<StoreCategory[]>("store/categories").then((data) => {
-      storeFallback = !data || data.length === 0;
-      const resolved = data && data.length > 0 ? data : mockStoreCategories();
+      storeFallback = !data;
+      const resolved = data ?? mockStoreCategories();
       categoriesCache = resolved;
       return resolved;
     });
@@ -106,8 +108,8 @@ export async function ensureStoreProductsLoaded(): Promise<StoreProduct[]> {
   if (productsCache) return productsCache;
   if (!productsPromise) {
     productsPromise = getJson<StoreProduct[]>("store/products").then((data) => {
-      storeFallback = !data || data.length === 0;
-      const resolved = data && data.length > 0 ? data : mockStoreProducts();
+      storeFallback = !data;
+      const resolved = data ?? mockStoreProducts();
       registerStoreProducts(resolved);
       productsCache = resolved;
       return resolved;
