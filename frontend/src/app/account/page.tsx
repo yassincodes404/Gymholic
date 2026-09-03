@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buildBackendApiUrl } from "@/lib/api";
 import { fetchBookingPricing } from "@/lib/pricing";
+import { filterPhoneInput, toE164, validateName, validatePhone } from "@/lib/validation";
 import { fetchCurrentUser, getStoredAuthToken, logout, updateStoredUser, resolveAvatarUrl } from "@/lib/auth";
 import type { AuthUser } from "@/lib/auth";
 import { Header } from "@/components/layout/Header";
@@ -30,6 +31,7 @@ import {
   IconSpark,
   IconCamera,
   IconPdf,
+  IconCheck,
 } from "@/components/account/icons";
 
 interface BookingItem {
@@ -574,6 +576,15 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // The phone as the backend currently has it + its verification status —
+  // edits stay local until a code proves the new number.
+  const [savedPhone, setSavedPhone] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [codeStep, setCodeStep] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneNotice, setPhoneNotice] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
     if (loaded || !token) return;
@@ -592,10 +603,84 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
           email: d.email ?? "",
           avatarUrl: resolveAvatarUrl(typeof d.profileImageUrl === "string" ? d.profileImageUrl : undefined),
         });
+        setSavedPhone(d.phone ?? "");
+        setPhoneVerified(d.phoneVerified === true);
       }
       setLoaded(true);
     })();
   }, [loaded, token]);
+
+  // One-minute resend cooldown for the SMS code.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
+  const phoneChanged = toE164(form.phone) !== toE164(savedPhone);
+
+  /** Sends the SMS code for the typed number (step 1 of a phone change). */
+  async function requestPhoneCode() {
+    const error = validatePhone(form.phone);
+    if (error) {
+      setPhoneNotice(error);
+      return;
+    }
+    setPhoneBusy(true);
+    setPhoneNotice(null);
+    try {
+      const res = await fetch(buildBackendApiUrl("users/me/phone/change-request"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ phone: form.phone }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.message || "Could not send the verification code.");
+      }
+      setCodeStep(true);
+      setOtp("");
+      setResendIn(60);
+      setPhoneNotice(`Code sent to ${payload.data?.maskedPhone ?? "your number"} — it expires in 10 minutes.`);
+    } catch (err) {
+      setPhoneNotice(err instanceof Error ? err.message : "Could not send the verification code.");
+    } finally {
+      setPhoneBusy(false);
+    }
+  }
+
+  /** Confirms the code (step 2) — only then does the number land on the account. */
+  async function confirmPhoneCode() {
+    if (!/^\d{6}$/.test(otp)) {
+      setPhoneNotice("Enter the 6-digit code from the SMS.");
+      return;
+    }
+    setPhoneBusy(true);
+    setPhoneNotice(null);
+    try {
+      const res = await fetch(buildBackendApiUrl("users/me/phone/confirm"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: otp }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.message || "Verification failed.");
+      }
+      const verifiedPhone: string = payload.data?.phone ?? form.phone;
+      setForm((f) => ({ ...f, phone: verifiedPhone }));
+      setSavedPhone(verifiedPhone);
+      setPhoneVerified(true);
+      setCodeStep(false);
+      setOtp("");
+      updateStoredUser({ phone: verifiedPhone, phoneVerified: true });
+      setPhoneNotice("Phone number verified.");
+    } catch (err) {
+      setPhoneNotice(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setPhoneBusy(false);
+    }
+  }
 
   /**
    * Resizes the chosen picture to a 256×256 cover-cropped JPEG in the
@@ -683,6 +768,17 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    // Client-side mirror of the backend's Bean Validation — instant feedback.
+    const nameError = validateName(form.firstName, "First name") ?? validateName(form.lastName, "Last name");
+    if (nameError) {
+      setFeedback({ kind: "err", text: nameError });
+      return;
+    }
+    // A changed phone number never rides the profile save — it goes through
+    // the SMS code flow. Sending the saved number is a harmless no-op, and
+    // emptying the field is an explicit clear (backend drops verification).
+    const clearingPhone = form.phone.trim() === "" && savedPhone !== "";
+    const phonePayload = clearingPhone ? "" : phoneChanged ? null : form.phone || null;
     setBusy(true);
     setFeedback(null);
     try {
@@ -693,9 +789,9 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          firstName: form.firstName,
-          lastName: form.lastName,
-          phone: form.phone || null,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: phonePayload,
           bio: form.bio || null,
         }),
       });
@@ -703,7 +799,16 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
       if (!res.ok || !payload?.success) {
         throw new Error(payload?.message || "Could not save your profile.");
       }
-      setFeedback({ kind: "ok", text: "Profile saved." });
+      if (phoneChanged) {
+        setFeedback({ kind: "err", text: "Profile saved — use “Verify number” to confirm your new phone." });
+      } else {
+        if (clearingPhone) {
+          setSavedPhone("");
+          setPhoneVerified(false);
+          updateStoredUser({ phone: undefined, phoneVerified: false });
+        }
+        setFeedback({ kind: "ok", text: "Profile saved." });
+      }
     } catch (err) {
       setFeedback({ kind: "err", text: err instanceof Error ? err.message : "Could not save." });
     } finally {
@@ -713,6 +818,16 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
 
   return (
     <form onSubmit={save} className="space-y-8">
+      {user?.phoneVerificationRequired && !phoneVerified && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl p-4 md:p-5"
+          style={{ background: "rgba(255,106,0,0.10)", border: "1px solid rgba(255,106,0,0.45)" }} role="alert">
+          <IconPhone width={18} height={18} style={{ color: "var(--orange)" }} />
+          <p className="text-sm flex-1 min-w-56">
+            <span className="font-semibold">Verify your phone number</span> — booking sessions and
+            placing orders are locked until you confirm the code we text you.
+          </p>
+        </div>
+      )}
       <div className="bg-surface border border-paper/10 rounded-2xl p-6 md:p-10">
         <p className="text-[11px] uppercase tracking-[0.25em] mb-2" style={{ color: "var(--orange)" }}>
           Your details
@@ -788,7 +903,7 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
             <label className="block text-[11px] uppercase tracking-[0.2em] mb-2.5 text-paper/60">First name</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-paper/40 pointer-events-none"><IconUser /></span>
-              <input className={`${inputClass} pl-11`} value={form.firstName} required
+              <input className={`${inputClass} pl-11`} value={form.firstName} required maxLength={100}
                 onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
             </div>
           </div>
@@ -796,7 +911,7 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
             <label className="block text-[11px] uppercase tracking-[0.2em] mb-2.5 text-paper/60">Last name</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-paper/40 pointer-events-none"><IconUser /></span>
-              <input className={`${inputClass} pl-11`} value={form.lastName} required
+              <input className={`${inputClass} pl-11`} value={form.lastName} required maxLength={100}
                 onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
             </div>
           </div>
@@ -804,10 +919,83 @@ function ProfileTab({ user }: { user: AuthUser | null }) {
             <label className="block text-[11px] uppercase tracking-[0.2em] mb-2.5 text-paper/60">Phone</label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-paper/40 pointer-events-none"><IconPhone /></span>
-              <input className={`${inputClass} pl-11`} value={form.phone} autoComplete="tel" placeholder="+20 100 000 0000"
-                onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <input className={`${inputClass} pl-11`} value={form.phone} autoComplete="tel" placeholder="+20 100 000 0000" inputMode="tel"
+                onChange={(e) => {
+                  setForm({ ...form, phone: filterPhoneInput(e.target.value) });
+                  setPhoneNotice(null);
+                }} />
             </div>
-            <p className="text-xs text-paper/40 mt-1.5">Used for SMS &amp; WhatsApp session updates.</p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5">
+              <p className="text-xs text-paper/40">
+                Used for SMS &amp; WhatsApp session updates.
+              </p>
+              {form.phone.trim() !== "" && (
+                phoneVerified && !phoneChanged ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
+                    <IconCheck width={11} height={11} /> Verified
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-orange/15 text-orange">
+                    {phoneChanged ? "Changed — verify" : "Not verified"}
+                  </span>
+                )
+              )}
+            </div>
+            {(phoneChanged || (form.phone.trim() !== "" && !phoneVerified)) && !codeStep && (
+              <button
+                type="button"
+                onClick={requestPhoneCode}
+                disabled={phoneBusy}
+                className="mt-3 text-xs uppercase tracking-widest px-4 py-2 rounded-full disabled:opacity-50"
+                style={{ background: "rgba(255,106,0,0.12)", color: "var(--orange)", border: "1px solid rgba(255,106,0,0.4)" }}
+              >
+                {phoneBusy ? "Sending…" : "Verify number"}
+              </button>
+            )}
+            {codeStep && (
+              <div className="mt-4 rounded-xl p-4" style={{ background: "rgba(245,241,232,0.03)", border: "1px solid rgba(245,241,232,0.1)" }}>
+                <p className="text-xs text-paper/60 mb-3">Enter the 6-digit code we texted you.</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    value={otp}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="••••••"
+                    maxLength={6}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className={`${inputClass} w-36 tracking-[0.4em] font-mono text-center`}
+                  />
+                  <button
+                    type="button"
+                    onClick={confirmPhoneCode}
+                    disabled={phoneBusy || otp.length !== 6}
+                    className="btn-pill !py-2 !px-5 text-xs disabled:opacity-50"
+                  >
+                    {phoneBusy ? "Checking…" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={requestPhoneCode}
+                    disabled={phoneBusy || resendIn > 0}
+                    className="text-xs text-paper/50 hover:text-paper transition-colors disabled:opacity-40"
+                  >
+                    {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setCodeStep(false); setOtp(""); setPhoneNotice(null); }}
+                    className="text-xs text-paper/40 hover:text-paper transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {phoneNotice && (
+              <p className={`text-xs mt-2 ${phoneNotice.startsWith("Code sent") || phoneNotice === "Phone number verified." ? "text-emerald-400" : "text-red-400"}`} role="alert">
+                {phoneNotice}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-[11px] uppercase tracking-[0.2em] mb-2.5 text-paper/60">Email</label>

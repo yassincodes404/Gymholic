@@ -2,6 +2,7 @@ package com.gymholic.user;
 
 import com.gymholic.common.exception.BadRequestException;
 import com.gymholic.common.exception.ResourceNotFoundException;
+import com.gymholic.common.util.PhoneUtils;
 import com.gymholic.common.util.TimezoneUtils;
 import com.gymholic.user.dto.UpdateUserRequest;
 import com.gymholic.user.dto.UserDto;
@@ -22,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserAvatarRepository userAvatarRepository;
+    private final com.gymholic.auth.PhoneVerificationService phoneVerificationService;
 
     private static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024;
     private static final Set<String> ALLOWED_AVATAR_TYPES = Set.of(
@@ -116,9 +118,7 @@ public class UserService {
         if (request.getLastName() != null) {
             user.setLastName(request.getLastName());
         }
-        if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
-        }
+        applyPhoneUpdate(user, request.getPhone());
         if (request.getProfileImageUrl() != null) {
             user.setProfileImageUrl(sanitizeProfileImageUrl(request.getProfileImageUrl()));
         }
@@ -136,6 +136,36 @@ public class UserService {
         return mapToDto(saved);
     }
 
+    /**
+     * Phone updates from the generic profile endpoint are restricted to
+     * no-ops: the number is an SMS destination, so it may only be SET (or
+     * replaced) through the SMS verification flow — a profile save can keep
+     * the verified number (reformatted freely) or clear it entirely, but a
+     * different number is rejected with directions to the code flow.
+     */
+    private void applyPhoneUpdate(User user, String phone) {
+        if (phone == null) {
+            return;
+        }
+        String trimmed = phone.trim();
+        if (trimmed.isEmpty()) {
+            // Explicit clear — also drops verification, there is nothing left to own.
+            user.setPhone(null);
+            user.setPhoneVerified(false);
+            return;
+        }
+        if (!PhoneUtils.isPlausiblePhone(trimmed)) {
+            throw new BadRequestException(
+                "Enter a valid phone number with country code, e.g. +20 100 000 0000.");
+        }
+        String normalized = PhoneUtils.toE164(trimmed);
+        if (!normalized.equals(PhoneUtils.toE164(user.getPhone()))) {
+            throw new BadRequestException(
+                "To change your phone number, verify the new one by SMS first (Account → Profile).");
+        }
+        user.setPhone(normalized);
+    }
+
     private UserDto mapToDto(User user) {
         return UserDto.builder()
             .id(user.getId())
@@ -143,6 +173,8 @@ public class UserService {
             .firstName(user.getFirstName())
             .lastName(user.getLastName())
             .phone(user.getPhone())
+            .phoneVerified(user.isPhoneVerified())
+            .phoneVerificationRequired(phoneVerificationService.isRequired())
             .role(user.getRole())
             .profileImageUrl(user.getProfileImageUrl())
             .bio(user.getBio())

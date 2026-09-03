@@ -28,7 +28,11 @@ public class BrevoConfigService {
     public static final String KEY_API_KEY = "BREVO_API_KEY";
     public static final String KEY_SENDER_EMAIL = "BREVO_SENDER_EMAIL";
     public static final String KEY_SENDER_NAME = "BREVO_SENDER_NAME";
+    public static final String KEY_SMS_SENDER = "BREVO_SMS_SENDER";
     public static final String KEY_ENABLED = "BREVO_ENABLED";
+
+    /** Alphanumeric SMS senders are capped at 11 chars by Brevo/E.164 rules. */
+    private static final int SMS_SENDER_MAX = 11;
 
     private final SettingsService settingsService;
     private final EncryptionUtil encryptionUtil;
@@ -41,6 +45,9 @@ public class BrevoConfigService {
 
     @Value("${app.brevo.sender-name:Gymholic}")
     private String envSenderName;
+
+    @Value("${app.brevo.sms-sender:Gymholic}")
+    private String envSmsSender;
 
     public record BrevoCredentials(String apiKey, String senderEmail, String senderName) {
         public boolean complete() {
@@ -84,6 +91,32 @@ public class BrevoConfigService {
         return getBrevoCredentials().complete();
     }
 
+    /**
+     * The SMS sender name shown as the message origin (alphanumeric, ≤11
+     * chars). Settings override the BREVO_SMS_SENDER env default.
+     */
+    public String getSmsSender() {
+        try {
+            String stored = settingsService.getAllSettings().get(KEY_SMS_SENDER);
+            return sanitizeSmsSender(pick(stored, envSmsSender));
+        } catch (Exception e) {
+            log.warn("Could not read the Brevo SMS sender, using env value: {}", e.getMessage());
+            return sanitizeSmsSender(envSmsSender);
+        }
+    }
+
+    /** Brevo SMS is usable when the account is active AND a sender is set. */
+    public boolean isSmsActive() {
+        return isBrevoActive() && notBlank(getSmsSender());
+    }
+
+    /** Strips characters Brevo rejects in alphanumeric sender IDs and caps the length. */
+    private static String sanitizeSmsSender(String sender) {
+        if (sender == null) return "";
+        String cleaned = sender.replaceAll("[^A-Za-z0-9 ]", "").trim();
+        return cleaned.length() > SMS_SENDER_MAX ? cleaned.substring(0, SMS_SENDER_MAX) : cleaned;
+    }
+
     /** Masked key for the admin UI, e.g. "xkeysib-…ab12". */
     public String maskedApiKey() {
         String key = getBrevoCredentials().apiKey();
@@ -94,7 +127,8 @@ public class BrevoConfigService {
 
     /** Saves the provided values; blank fields keep their stored value. */
     @Transactional
-    public void saveBrevoConfig(String apiKey, String senderEmail, String senderName, Boolean enabled) {
+    public void saveBrevoConfig(String apiKey, String senderEmail, String senderName,
+                                String smsSender, Boolean enabled) {
         if (notBlank(apiKey)) {
             try {
                 settingsService.updateSetting(KEY_API_KEY, ENC_PREFIX + encryptionUtil.encrypt(apiKey.trim()));
@@ -104,6 +138,7 @@ public class BrevoConfigService {
         }
         if (notBlank(senderEmail)) settingsService.updateSetting(KEY_SENDER_EMAIL, senderEmail.trim());
         if (notBlank(senderName)) settingsService.updateSetting(KEY_SENDER_NAME, senderName.trim());
+        if (notBlank(smsSender)) settingsService.updateSetting(KEY_SMS_SENDER, sanitizeSmsSender(smsSender));
         if (enabled != null) settingsService.updateSetting(KEY_ENABLED, enabled.toString());
     }
 

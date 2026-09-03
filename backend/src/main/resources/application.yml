@@ -43,6 +43,9 @@ app:
     api-key: ${BREVO_API_KEY:}
     sender-email: ${BREVO_SENDER_EMAIL:}
     sender-name: ${BREVO_SENDER_NAME:Gymholic}
+    # SMS sender name shown as the origin of verification texts (alphanumeric,
+    # max 11 chars — Brevo/E.164 cap). Uses the same Brevo account/API key.
+    sms-sender: ${BREVO_SMS_SENDER:Gymholic}
   twilio:
     # SMS + WhatsApp notifications (Admin → Integrations can also set these).
     account-sid: ${TWILIO_ACCOUNT_SID:}
@@ -54,6 +57,11 @@ app:
     # required before any payment, order, cart or booking goes through.
     # Set EMAIL_VERIFICATION_REQUIRED=false only to recover/develop locally.
     email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:true}
+    # Phone numbers must be confirmed with an SMS one-time code (Brevo) before
+    # the account can book sessions or place orders. Set
+    # PHONE_VERIFICATION_REQUIRED=false only as an emergency rollback
+    # (e.g. Brevo SMS credits exhausted).
+    phone-verification-required: ${PHONE_VERIFICATION_REQUIRED:true}
 
 google:
   client:

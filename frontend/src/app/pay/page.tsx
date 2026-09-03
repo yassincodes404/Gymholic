@@ -376,6 +376,32 @@ function PayPageContent() {
     );
   }
 
+  // Mandatory phone verification: payment is refused until the account owns
+  // a verified number (the backend enforces this too — this is the friendly UX).
+  if (user.phoneVerificationRequired && !user.phoneVerified) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4" style={{ background: theme.bg }}>
+        <div className="w-full max-w-md rounded-2xl p-10 text-center" style={{ background: theme.cardLight, border: `1px solid ${theme.line}` }}>
+          <p className="text-[11px] uppercase tracking-[0.25em] mb-3" style={{ color: ACCENT }}>Gymholic · Secure checkout</p>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: theme.ink }}>Verify your phone first</h1>
+          <p className="text-sm mb-8" style={{ color: theme.muted }}>
+            Payments can only be made by accounts with a confirmed phone number.
+            Verify in Account → Profile with the SMS code we send you, then come
+            straight back — nothing in your cart or booking was lost.
+          </p>
+          <div className="flex flex-col gap-3">
+            <Link href="/account?tab=profile" className="w-full text-white font-semibold py-3 rounded-xl" style={{ background: ACCENT }}>
+              Verify in Account → Profile
+            </Link>
+            <Link href={isBooking ? "/book" : "/checkout"} className="w-full font-semibold py-3 rounded-xl" style={{ border: `1px solid ${theme.line}`, color: theme.ink }}>
+              Back
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // Success terminal (bookings; orders redirect to /order-success instead).
   if (stage === "success" && result) {
     return (

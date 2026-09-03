@@ -1,5 +1,6 @@
 package com.gymholic.user;
 
+import com.gymholic.auth.PhoneVerificationService;
 import com.gymholic.common.response.ApiResponse;
 import com.gymholic.security.SecurityUtils;
 import com.gymholic.user.dto.UpdateUserRequest;
@@ -21,6 +22,7 @@ public class UserController {
 
     private final UserService userService;
     private final AccountService accountService;
+    private final PhoneVerificationService phoneVerificationService;
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserDto>> getCurrentUser() {
@@ -76,6 +78,29 @@ public class UserController {
             request.get("currentPassword"),
             request.get("newPassword"));
         return ResponseEntity.ok(ApiResponse.success("Password changed", null));
+    }
+
+    /**
+     * Step 1 of a phone change — texts a 6-digit code to the NEW number via
+     * Brevo SMS. The number is not applied until the code is confirmed.
+     */
+    @PostMapping("/me/phone/change-request")
+    public ResponseEntity<ApiResponse<Map<String, String>>> requestPhoneChange(
+            @RequestBody Map<String, String> request) {
+        String masked = phoneVerificationService.requestPhoneChange(
+            SecurityUtils.getCurrentUserEmail(), request.get("phone"));
+        return ResponseEntity.ok(ApiResponse.success(
+            "Verification code sent to " + masked, Map.of("maskedPhone", masked)));
+    }
+
+    /** Step 2 of a phone change — applies the number after the SMS code check. */
+    @PostMapping("/me/phone/confirm")
+    public ResponseEntity<ApiResponse<UserDto>> confirmPhoneChange(
+            @RequestBody Map<String, String> request) {
+        String email = SecurityUtils.getCurrentUserEmail();
+        phoneVerificationService.confirmPhoneChange(email, request.get("code"));
+        UserDto after = userService.getUserByEmail(email);
+        return ResponseEntity.ok(ApiResponse.success("Phone number verified", after));
     }
 
     /** Step 1 of an email change — sends a confirmation code to the new address. */

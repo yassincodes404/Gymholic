@@ -76,6 +76,15 @@ public class User {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
 
+    /**
+     * Whether the user confirmed ownership of their phone number with an
+     * SMS one-time code. Cleared whenever the number changes — a new number
+     * must re-verify before SMS/WhatsApp notifications trust it.
+     */
+    @Builder.Default
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

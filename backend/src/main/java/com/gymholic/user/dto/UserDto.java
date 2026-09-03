@@ -19,6 +19,9 @@ public class UserDto {
     private String firstName;
     private String lastName;
     private String phone;
+    private boolean phoneVerified;
+    /** Global policy flag: bookings/orders are blocked until phoneVerified is true. */
+    private boolean phoneVerificationRequired;
     private Role role;
     private String profileImageUrl;
     private String bio;

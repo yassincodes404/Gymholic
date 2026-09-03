@@ -34,6 +34,7 @@ public class OrderService {
     private final CartRepository cartRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final com.gymholic.auth.PhoneVerificationService phoneVerificationService;
     private final com.gymholic.whitelist.WhitelistRepository whitelistRepository;
     private final com.gymholic.settings.SettingsService settingsService;
     private final com.gymholic.store.repository.ProductRepository productRepository;
@@ -46,6 +47,8 @@ public class OrderService {
     @Transactional
     public OrderDto checkout(String email) {
         User user = requireUser(email);
+        // Mandatory phone verification: no verified number, no purchase.
+        phoneVerificationService.requireVerifiedPhone(user);
         // PENDING → markOrderPaid runs the full fulfilment chain (cart clear,
         // Academy whitelist, receipts) exactly like a real webhook would.
         Order saved = buildOrderFromCart(user, Order.Status.PENDING, "mock",
@@ -62,6 +65,8 @@ public class OrderService {
     @Transactional
     public OrderDto createPendingOrder(String email, String provider) {
         User user = requireUser(email);
+        // Mandatory phone verification: no verified number, no purchase.
+        phoneVerificationService.requireVerifiedPhone(user);
         Order saved = buildOrderFromCart(user, Order.Status.PENDING, provider, null);
         return toDto(saved, orderItemRepository.findByOrderId(saved.getId()));
     }

@@ -24,7 +24,8 @@ public class EmailAdminController {
     private final BrevoConfigService brevoConfigService;
     private final EmailService emailService;
 
-    public record SaveBrevoRequest(String apiKey, String senderEmail, String senderName, Boolean enabled) {}
+    public record SaveBrevoRequest(String apiKey, String senderEmail, String senderName,
+                                   String smsSender, Boolean enabled) {}
     public record TestEmailRequest(@NotBlank String to) {}
 
     @GetMapping("/status")
@@ -38,13 +39,16 @@ public class EmailAdminController {
                 "active", brevoConfigService.isBrevoActive(),
                 "apiKeyMasked", brevoConfigService.maskedApiKey(),
                 "senderEmail", creds.senderEmail() == null ? "" : creds.senderEmail(),
-                "senderName", creds.senderName() == null ? "" : creds.senderName())));
+                "senderName", creds.senderName() == null ? "" : creds.senderName(),
+                "smsActive", brevoConfigService.isSmsActive(),
+                "smsSender", brevoConfigService.getSmsSender() == null ? "" : brevoConfigService.getSmsSender())));
     }
 
     @PutMapping("/brevo")
     public ApiResponse<Map<String, Object>> saveBrevo(@RequestBody SaveBrevoRequest request) {
         brevoConfigService.saveBrevoConfig(
-            request.apiKey(), request.senderEmail(), request.senderName(), request.enabled());
+            request.apiKey(), request.senderEmail(), request.senderName(),
+            request.smsSender(), request.enabled());
         return ApiResponse.success("Brevo settings saved", status().getData());
     }
 

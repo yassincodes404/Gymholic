@@ -58,6 +58,7 @@ public class BookingService {
     private final com.gymholic.calendar.ZoomService zoomService;
     private final com.gymholic.payment.RefundRepository refundRepository;
     private final com.gymholic.payment.RefundService refundService;
+    private final com.gymholic.auth.PhoneVerificationService phoneVerificationService;
 
     /** First configured frontend origin — used for links inside emails. */
     @Value("${app.cors.allowed-origins:http://localhost:3000}")
@@ -98,6 +99,8 @@ public class BookingService {
     public BookingDto createBooking(String clientEmail, CreateBookingRequest request) {
         User client = userRepository.findByEmail(clientEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User", "email", clientEmail));
+        // Mandatory phone verification: no verified number, no booking.
+        phoneVerificationService.requireVerifiedPhone(client);
 
         User trainer = userRepository.findByIdForUpdate(request.getTrainerId())
             .orElseThrow(() -> new ResourceNotFoundException("Trainer", "id", request.getTrainerId()));

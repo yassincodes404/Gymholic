@@ -23,6 +23,10 @@ export interface AuthUser {
   role: "ADMIN" | "TRAINER" | "CLIENT";
   /** Account phone (from GET /users/me only — auth responses don't carry it). */
   phone?: string;
+  /** True when the account phone was confirmed with an SMS code. */
+  phoneVerified?: boolean;
+  /** Global policy: bookings/orders are blocked until phoneVerified is true. */
+  phoneVerificationRequired?: boolean;
   /** Profile picture path, versioned for cache-busting (e.g. /api/users/3/avatar?v=17). */
   avatarUrl?: string;
 }
@@ -258,6 +262,8 @@ export async function fetchCurrentUser(token: string | null): Promise<AuthUser |
     lastName: d.lastName,
     role: d.role,
     phone: typeof d.phone === "string" ? d.phone : undefined,
+    phoneVerified: d.phoneVerified === true,
+    phoneVerificationRequired: d.phoneVerificationRequired === true,
     avatarUrl: resolveAvatarUrl(typeof d.profileImageUrl === "string" ? d.profileImageUrl : undefined),
   };
 }

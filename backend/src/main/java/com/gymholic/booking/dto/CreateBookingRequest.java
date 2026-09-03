@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -56,10 +58,13 @@ public class CreateBookingRequest {
      * - Send email notifications in client's timezone
      */
     @NotBlank(message = "Client timezone is required")
+    @Size(max = 64, message = "Client timezone is too long")
     private String clientTimezone;
 
     private java.util.UUID assessmentId;
 
+    /** Free-text context (contact details, topic, message) assembled by the client — capped, never parsed for pricing decisions beyond the legacy keyword match. */
+    @Size(max = 2000, message = "Notes must be at most 2000 characters")
     private String notes;
 
     /**
@@ -67,5 +72,7 @@ public class CreateBookingRequest {
      * OPEN_SESSION | FREE_SESSION). When omitted the service is derived
      * from the notes using the historical matching rules.
      */
+    @Size(max = 32, message = "Unknown service type")
+    @Pattern(regexp = "[A-Za-z_]*", message = "Unknown service type")
     private String serviceType;
 }

@@ -22,6 +22,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
+    /** Phone numbers are shared keys (SMS targets) — one account each. */
+    boolean existsByPhoneAndIdNot(String phone, Long id);
+
     List<User> findByRole(Role role);
 
     Optional<User> findFirstByRoleOrderByCreatedAtAsc(Role role);

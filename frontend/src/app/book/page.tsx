@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ServiceSelect } from "@/components/booking/ServiceSelect";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
-import { BookingDetailsForm, emptyBookingDetails, type BookingDetails } from "@/components/booking/BookingDetailsForm";
+import { BookingDetailsForm, bookingDetailsErrors, emptyBookingDetails, type BookingDetails } from "@/components/booking/BookingDetailsForm";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { BookingConfirmation } from "@/components/booking/BookingConfirmation";
 import { BookingProgress } from "@/components/booking/BookingProgress";
@@ -18,7 +19,7 @@ import { applyPricing, fetchBookingPricing, filterDisabledServices } from "@/lib
 import { dateKey, formatDateLabel, SLOT_TIMES } from "@/lib/bookingSlots";
 import { useLenis } from "@/components/motion/useLenis";
 import { ScrollRefresher } from "@/components/motion/ScrollRefresher";
-import { fetchCurrentUser } from "@/lib/auth";
+import { fetchCurrentUser, type AuthUser } from "@/lib/auth";
 import {
   buildBackendApiUrl,
   getClientTimezone,
@@ -101,6 +102,8 @@ export default function BookPage() {
   const isFreeSession = service?.id === "free-session";
   // Signed-in account profile — prefills the details form (phone locked).
   const [accountPhone, setAccountPhone] = useState<string | null>(null);
+  // Full account (for the mandatory phone-verification gate).
+  const [accountUser, setAccountUser] = useState<AuthUser | null>(null);
 
   // Live prices from the backend (admin-managed); falls back to catalogue defaults.
   useEffect(() => {
@@ -132,6 +135,7 @@ export default function BookPage() {
     let cancelled = false;
     fetchCurrentUser(token).then((user) => {
       if (cancelled || !user) return;
+      setAccountUser(user);
       setAccountPhone(user.phone ?? null);
       setDetails((current) => ({
         ...current,
@@ -361,8 +365,11 @@ export default function BookPage() {
     }
   }
 
-  const detailsValid =
-    details.fullName.trim() && details.email.trim() && details.phone.trim() && details.country.trim() && details.topic.trim();
+  // Continue gate + first-error hint, driven by the same validator the form
+  // fields use — a phone that "accepts text" can never reach payment.
+  const detailErrors = bookingDetailsErrors(details);
+  const firstDetailError = (Object.values(detailErrors).find(Boolean) as string | undefined) ?? null;
+  const detailsValid = firstDetailError === null;
 
   return (
     <>
@@ -438,7 +445,23 @@ export default function BookPage() {
               <BookingDetailsForm values={details} onChange={setDetails} lockedPhone={!!accountPhone} />
               <div className="space-y-6">
                 <BookingSummary service={service} date={date} time={time} />
-                {detailsValid ? (
+                {accountUser?.phoneVerificationRequired && !accountUser.phoneVerified ? (
+                  <div
+                    className="rounded-2xl p-6"
+                    style={{ background: "rgba(255,106,0,0.10)", border: "1px solid rgba(255,106,0,0.45)" }}
+                    role="alert"
+                  >
+                    <p className="font-medium mb-2">Verify your phone to book</p>
+                    <p className="text-sm opacity-70 mb-5">
+                      Sessions can only be reserved for a confirmed number. Verify in
+                      Account → Profile — it takes one SMS code — then come straight back;
+                      your slot choice is kept.
+                    </p>
+                    <Link href="/account?tab=profile" className="btn-pill w-full justify-center">
+                      Verify in Account → Profile
+                    </Link>
+                  </div>
+                ) : detailsValid ? (
                   <button
                     type="button"
                     className="btn-pill w-full justify-center disabled:opacity-50"
@@ -448,7 +471,9 @@ export default function BookPage() {
                     Continue to Payment
                   </button>
                 ) : (
-                  <p className="text-sm opacity-40">Fill in your details to continue.</p>
+                  <p className="text-sm opacity-40" role="alert">
+                    {firstDetailError}
+                  </p>
                 )}
               </div>
             </div>

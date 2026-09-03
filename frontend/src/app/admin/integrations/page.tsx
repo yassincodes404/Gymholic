@@ -48,6 +48,8 @@ interface BrevoStatus {
   apiKeyMasked: string;
   senderEmail: string;
   senderName: string;
+  smsActive: boolean;
+  smsSender: string;
 }
 
 interface EmailStatus {
@@ -124,6 +126,7 @@ function AdminIntegrations() {
   const [brevoApiKey, setBrevoApiKey] = useState("");
   const [brevoSenderEmail, setBrevoSenderEmail] = useState("");
   const [brevoSenderName, setBrevoSenderName] = useState("");
+  const [brevoSmsSender, setBrevoSmsSender] = useState("");
   const [brevoEnabled, setBrevoEnabled] = useState(false);
   const [savingBrevo, setSavingBrevo] = useState(false);
   const [testTo, setTestTo] = useState("");
@@ -196,6 +199,7 @@ function AdminIntegrations() {
         setBrevoEnabled(data.brevo?.enabled ?? false);
         setBrevoSenderEmail(data.brevo?.senderEmail ?? "");
         setBrevoSenderName(data.brevo?.senderName ?? "");
+        setBrevoSmsSender(data.brevo?.smsSender ?? "");
       }
     } catch {
       // Email status is non-fatal for the page.
@@ -337,6 +341,7 @@ function AdminIntegrations() {
           apiKey: brevoApiKey || null,
           senderEmail: brevoSenderEmail || null,
           senderName: brevoSenderName || null,
+          smsSender: brevoSmsSender || null,
           enabled: brevoEnabled,
         }),
       });
@@ -454,9 +459,9 @@ function AdminIntegrations() {
         </div>
       )}
 
-      {/* ---------- Transactional email ---------- */}
+      {/* ---------- Transactional email + SMS (Brevo) ---------- */}
       <section className="mb-12">
-        <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Transactional email</h2>
+        <h2 className="text-sm uppercase tracking-wider text-paper/50 mb-4">Transactional email &amp; SMS</h2>
 
         <div className="max-w-xl bg-surface border border-paper/10 rounded-xl p-6">
           <div className="flex items-center gap-3 mb-5">
@@ -465,7 +470,7 @@ function AdminIntegrations() {
             </span>
             <div>
               <h3 className="font-semibold">Brevo</h3>
-              <p className="text-xs text-paper/50">Booking emails, receipts, reminders &amp; sign-in codes</p>
+              <p className="text-xs text-paper/50">Booking emails, receipts, reminders, sign-in codes &amp; phone-verification SMS</p>
             </div>
             <span
               className={`ml-auto text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${
@@ -524,6 +529,27 @@ function AdminIntegrations() {
                 />
               </label>
             </div>
+            <label className="block text-sm">
+              <span className="text-paper/75 block mb-1.5">
+                SMS sender name{" "}
+                <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${
+                  emailStatus?.brevo.smsActive ? "bg-emerald-500/15 text-emerald-400" : "bg-paper/10 text-paper/60"
+                }`}>
+                  {emailStatus?.brevo.smsActive ? "● SMS active" : "SMS off"}
+                </span>
+              </span>
+              <input
+                value={brevoSmsSender}
+                maxLength={11}
+                onChange={(e) => setBrevoSmsSender(e.target.value.replace(/[^A-Za-z0-9 ]/g, "").slice(0, 11))}
+                placeholder="Gymholic"
+                className={inputStyle}
+              />
+              <span className="text-xs text-paper/40 block mt-1.5">
+                Origin of phone-verification texts (max 11 letters/digits). Uses the same Brevo
+                account and API key — SMS credits are billed separately by Brevo.
+              </span>
+            </label>
             <label className="flex items-center gap-2 text-sm text-paper/75">
               <input
                 type="checkbox"

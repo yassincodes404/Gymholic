@@ -5,6 +5,10 @@ app:
     # Legacy auth tests exercise the direct-to-tokens flow; the challenge
     # flow has its own dedicated test class.
     email-verification-required: false
+    # The mandatory phone gate is covered by PhoneVerificationServiceTest's
+    # dedicated gate tests; flow tests here run with it disabled so bookings/
+    # orders can be exercised with unverified fixtures.
+    phone-verification-required: false
   payments:
     # Registers the mock provider so payment flows are exercisable in tests.
     mock-enabled: true
