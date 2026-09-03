@@ -16,6 +16,7 @@ import {
   type StoreProductDetail,
 } from "@/lib/store";
 import { getStoredAuthToken } from "@/lib/auth";
+import { catalogProductFromStore } from "@/lib/catalog";
 import { useCart } from "@/components/cart/CartContext";
 
 /*!
@@ -27,7 +28,7 @@ export default function BlueprintDetailPage() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
   const router = useRouter();
-  const { addItem, isInCart } = useCart();
+  const { addProduct, isInCart } = useCart();
 
   const [detail, setDetail] = useState<StoreProductDetail | null>(null);
   const [missing, setMissing] = useState(false);
@@ -175,7 +176,7 @@ export default function BlueprintDetailPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => addItem(detail.slug)}
+                  onClick={() => addProduct(catalogProductFromStore(detail))}
                   className="btn-pill disabled:opacity-50"
                   disabled={inCart}
                 >

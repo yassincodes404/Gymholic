@@ -43,9 +43,34 @@ const blueprintProducts: CatalogProduct[] = blueprints.map((b) => ({
 }));
 
 /**
+ * Maps a live store product (backend Blueprint) into the catalog shape the
+ * cart, checkout and payment pages consume. Used both to register fetched
+ * store products and at add-to-cart sites so a cart entry carries its own
+ * name/price — new Blueprints must never depend on this module's registry
+ * being fresh for checkout to price them.
+ */
+export function catalogProductFromStore(product: {
+  slug: string;
+  title: string;
+  price: number;
+  currency?: string;
+  isFree?: boolean;
+}): CatalogProduct {
+  return {
+    id: product.slug,
+    name: product.title,
+    price: product.isFree ? 0 : product.price,
+    currency: "USD",
+    productType: "BLUEPRINT",
+    kindLabel: product.isFree ? "Free Blueprint" : "Blueprint",
+  };
+}
+
+/**
  * Live store products (from lib/store.ts) registered at module level once
- * fetched, so the cart/checkout resolve real backend slugs and prices while
- * falling back to the mock blueprints before (or without) a backend.
+ * fetched, so cart ids added before the cart carried payloads (legacy
+ * localStorage) still resolve, while falling back to the mock blueprints
+ * before (or without) a backend.
  */
 const storeProductsById = new Map<string, CatalogProduct>();
 
@@ -57,14 +82,7 @@ export function registerStoreProducts(products: {
   isFree?: boolean;
 }[]): void {
   for (const product of products) {
-    storeProductsById.set(product.slug, {
-      id: product.slug,
-      name: product.title,
-      price: product.isFree ? 0 : product.price,
-      currency: "USD",
-      productType: "BLUEPRINT",
-      kindLabel: product.isFree ? "Free Blueprint" : "Blueprint",
-    });
+    storeProductsById.set(product.slug, catalogProductFromStore(product));
   }
 }
 

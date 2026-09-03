@@ -8,11 +8,35 @@ import { AUTH_CHANGED_EVENT, getStoredAuthToken } from "@/lib/auth";
 
 const CART_KEY = "gymholic-cart";
 
+/**
+ * A cart line that carries its own name/price/type — either snapshotted at
+ * add-to-cart time or adopted from the server cart row. Entries never
+ * re-resolve against the client-side product catalog for pricing, so
+ * Blueprints added to the store after this page loaded (whose ids no local
+ * registry knows) still check out correctly.
+ */
+export type CartEntry = CatalogProduct & { coverLines?: string[] };
+
+type ServerCartItem = {
+  productId: string;
+  productType?: string;
+  title?: string;
+  price?: number | string;
+  currency?: string;
+};
+
+/** GET /api/cart returns the whole CartDto (items + subtotal + count), not a bare list. */
+type ServerCart = { items?: ServerCartItem[] | null };
+
 type CartContextValue = {
+  /** Self-contained cart lines (name/price ride with the entry). */
+  items: CartEntry[];
   itemIds: string[];
+  /** True once the cart has been loaded (server cart for members, localStorage for guests). */
+  hydrated: boolean;
   /** Adds any catalog product (blueprint, Academy membership, future courses). */
   addProduct: (product: CatalogProduct) => void;
-  /** Blueprint shorthand for addProduct. */
+  /** Blueprint shorthand: resolves the id against the product catalog. */
   addItem: (blueprintId: string) => void;
   removeItem: (productId: string) => void;
   clear: () => void;
@@ -49,6 +73,40 @@ async function api<T>(path: string, init?: RequestInit): Promise<T | null> {
   return payload.data as T;
 }
 
+/** Server cart row → self-contained entry (server title/price are canonical). */
+function entryFromServerItem(item: ServerCartItem): CartEntry {
+  const productType = item.productType === "ACADEMY" ? "ACADEMY" : "BLUEPRINT";
+  return {
+    id: item.productId,
+    name: item.title ?? item.productId,
+    price: Number(item.price) || 0,
+    currency: "USD",
+    productType,
+    kindLabel: productType === "ACADEMY" ? "Academy Membership" : "Blueprint",
+  };
+}
+
+/** Guest localStorage: entry objects today; bare ids from older builds are
+ *  resolved against the catalog once and then upgraded. Unresolvable ids
+ *  (e.g. a Blueprint deleted from the store) are dropped. */
+function loadGuestCart(): CartEntry[] {
+  try {
+    const raw = window.localStorage.getItem(CART_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    if (parsed.every((e) => !!e && typeof e === "object" && typeof (e as CartEntry).id === "string")) {
+      return parsed as CartEntry[];
+    }
+    return parsed
+      .filter((id): id is string => typeof id === "string")
+      .map((id) => getCatalogProduct(id))
+      .filter((p): p is CatalogProduct => p !== null);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Cart for digital products (quantity is always 1 per item — "adding" an
  * already-present item is a no-op, not a quantity bump).
@@ -59,29 +117,24 @@ async function api<T>(path: string, init?: RequestInit): Promise<T | null> {
  * cart is merged into the server cart, then localStorage is retired.
  */
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [itemIds, setItemIds] = useState<string[]>([]);
+  const [items, setItems] = useState<CartEntry[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const syncingRef = useRef(false);
 
   // Initial load: server cart when signed in, localStorage otherwise. Store
-  // products are loaded first so cart items carrying backend slugs resolve.
+  // products are loaded first so legacy bare-id guest carts still resolve.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       await ensureStoreProductsLoaded().catch(() => null);
       if (cancelled) return;
-      const server = await api<{ items: { productId: string }[] }>("cart");
+      const server = await api<ServerCart>("cart");
       if (cancelled) return;
       if (server) {
-        setItemIds(server.items.map((i) => i.productId));
+        setItems((server.items ?? []).map(entryFromServerItem));
       } else {
-        try {
-          const raw = window.localStorage.getItem(CART_KEY);
-          setItemIds(raw ? JSON.parse(raw) : []);
-        } catch {
-          setItemIds([]);
-        }
+        setItems(loadGuestCart());
       }
       setHydrated(true);
     })();
@@ -93,8 +146,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Guest fallback persistence — only while not signed in.
   useEffect(() => {
     if (!hydrated || getStoredAuthToken()) return;
-    localStorage.setItem(CART_KEY, JSON.stringify(itemIds));
-  }, [itemIds, hydrated]);
+    localStorage.setItem(CART_KEY, JSON.stringify(items));
+  }, [items, hydrated]);
 
   // React to login/logout anywhere in the app.
   useEffect(() => {
@@ -104,35 +157,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         if (getStoredAuthToken()) {
           // Signed in: merge any guest cart into the server cart, then adopt it.
-          let guestIds: string[] = [];
-          try {
-            const raw = localStorage.getItem(CART_KEY);
-            guestIds = raw ? JSON.parse(raw) : [];
-          } catch {
-            guestIds = [];
-          }
-          const server = await api<{ items: { productId: string }[] }>("cart");
-          const serverIds = server?.items.map((i) => i.productId) ?? [];
-          const missing = guestIds.filter((id) => !serverIds.includes(id) && getCatalogProduct(id));
-          for (const id of missing) {
-            const product = getCatalogProduct(id)!;
+          const guestEntries = loadGuestCart();
+          const server = await api<ServerCart>("cart");
+          const serverItems = server?.items ?? [];
+          const serverIds = serverItems.map((i) => i.productId);
+          const missing = guestEntries.filter((entry) => !serverIds.includes(entry.id));
+          for (const entry of missing) {
             await api("cart/items", {
               method: "POST",
               body: JSON.stringify({
-                productId: product.id,
-                productType: product.productType,
-                title: product.name,
-                price: product.price,
+                productId: entry.id,
+                productType: entry.productType,
+                title: entry.name,
+                price: entry.price,
                 currency: "USD",
               }),
             });
           }
-          const merged = await api<{ items: { productId: string }[] }>("cart");
-          setItemIds(merged?.items.map((i) => i.productId) ?? [...serverIds, ...missing]);
+          const merged = await api<ServerCart>("cart");
+          setItems((merged?.items ?? serverItems).map(entryFromServerItem));
           localStorage.removeItem(CART_KEY);
         } else {
           // Signed out: keep current items as the guest cart.
-          localStorage.setItem(CART_KEY, JSON.stringify(itemIds));
+          localStorage.setItem(CART_KEY, JSON.stringify(items));
         }
       } finally {
         syncingRef.current = false;
@@ -140,12 +187,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener(AUTH_CHANGED_EVENT, sync);
     return () => window.removeEventListener(AUTH_CHANGED_EVENT, sync);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemIds]);
+  }, [items]);
 
   const addProduct = useCallback((product: CatalogProduct) => {
     if (!product) return;
-    setItemIds((ids) => (ids.includes(product.id) ? ids : [...ids, product.id]));
+    setItems((current) => (current.some((i) => i.id === product.id) ? current : [...current, product]));
     if (getStoredAuthToken()) {
       void api("cart/items", {
         method: "POST",
@@ -168,15 +214,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [addProduct]
   );
 
-  const removeItem = useCallback((blueprintId: string) => {
-    setItemIds((ids) => ids.filter((id) => id !== blueprintId));
+  const removeItem = useCallback((productId: string) => {
+    setItems((current) => current.filter((i) => i.id !== productId));
     if (getStoredAuthToken()) {
-      void api(`cart/items/${encodeURIComponent(blueprintId)}`, { method: "DELETE" });
+      void api(`cart/items/${encodeURIComponent(productId)}`, { method: "DELETE" });
     }
   }, []);
 
   const clear = useCallback(() => {
-    setItemIds([]);
+    setItems([]);
     if (getStoredAuthToken()) {
       void api("cart", { method: "DELETE" });
     } else {
@@ -184,21 +230,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const isInCart = useCallback((productId: string) => itemIds.includes(productId), [itemIds]);
+  const isInCart = useCallback((productId: string) => items.some((i) => i.id === productId), [items]);
 
-  const subtotal = useMemo(
-    () => itemIds.reduce((sum, id) => sum + (getCatalogProduct(id)?.price ?? 0), 0),
-    [itemIds]
-  );
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.price, 0), [items]);
+  const itemIds = useMemo(() => items.map((i) => i.id), [items]);
 
   const value: CartContextValue = {
+    items,
     itemIds,
+    hydrated,
     addProduct,
     addItem,
     removeItem,
     clear,
     isInCart,
-    count: itemIds.length,
+    count: items.length,
     subtotal,
     isOpen,
     open: () => setIsOpen(true),
@@ -214,11 +260,17 @@ export function useCart() {
   return ctx;
 }
 
-/** Convenience: resolved catalog products for whatever's currently in the cart. */
-export function useCartItems() {
+/** The cart's line items — carried payloads, not catalog lookups. */
+export function useCartItems(): CartEntry[] {
+  const { items } = useCart();
+  return items;
+}
+
+/**
+ * Convenience hook mirroring the historical shape (item ids). Prefer
+ * useCartItems(); this exists so call sites that only need ids keep compiling.
+ */
+export function useCartIds(): string[] {
   const { itemIds } = useCart();
-  return useMemo(
-    () => itemIds.map((id) => getCatalogProduct(id)).filter(Boolean) as CatalogProduct[],
-    [itemIds]
-  );
+  return itemIds;
 }

@@ -51,23 +51,19 @@ function StepTrack({ current }: { current: number }) {
 export default function CheckoutPage() {
   useLenis();
   const router = useRouter();
-  const { itemIds, subtotal } = useCart();
+  const { itemIds, subtotal, hydrated } = useCart();
   const items = useCartItems();
-  const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authResolved, setAuthResolved] = useState(false);
   const [busy, setBusy] = useState(false);
   const completedRef = useRef(false);
 
+  // Only an empty cart AFTER the cart context actually hydrated (server cart
+  // or localStorage, whichever applies) means "nothing to check out" — the
+  // old fixed 50ms timer raced the network and bounced members home.
   useEffect(() => {
-    // Give the cart a tick to hydrate from localStorage before deciding it's empty.
-    const t = setTimeout(() => setReady(true), 50);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    if (ready && itemIds.length === 0 && !completedRef.current) router.replace("/");
-  }, [ready, itemIds.length, router]);
+    if (hydrated && itemIds.length === 0 && !completedRef.current) router.replace("/");
+  }, [hydrated, itemIds.length, router]);
 
   // Resolve the session after mount — localStorage is unreadable during SSR.
   useEffect(() => {
@@ -88,7 +84,7 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  if (!ready || itemIds.length === 0) return null;
+  if (!hydrated || itemIds.length === 0) return null;
 
   // Guests: no anonymous checkout — ask them to sign in (or create an
   // account) and come straight back. The cart survives the round-trip.

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { coverLinesFromTitle, fetchStoreLibrary, storeCoverUrl, type StoreProduct } from "@/lib/store";
 import { getStoredAuthToken } from "@/lib/auth";
+import { catalogProductFromStore } from "@/lib/catalog";
 import { BlueprintCover } from "./BlueprintCover";
 import { useCart } from "@/components/cart/CartContext";
 import { IconCheck } from "@/components/account/icons";
@@ -23,12 +24,14 @@ function BlueprintCard({
   index: number;
   owned: boolean;
 }) {
-  const { addItem, isInCart } = useCart();
+  const { addProduct, isInCart } = useCart();
   const [justAdded, setJustAdded] = useState(false);
   const inCart = isInCart(product.slug);
 
   const handleAdd = () => {
-    addItem(product.slug);
+    // The entry carries its own title/price, so checkout works even if this
+    // Blueprint was added to the store after the page's catalog was fetched.
+    addProduct(catalogProductFromStore(product));
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1200);
   };
