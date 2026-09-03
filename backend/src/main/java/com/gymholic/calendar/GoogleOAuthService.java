@@ -45,8 +45,14 @@ public class GoogleOAuthService {
     @Value("${google.redirect.uri:}")
     private String redirectUri;
 
+    // Per-event access only: Gymholic creates, updates and deletes the
+    // consultation events it owns on the connected expert's primary calendar
+    // (Meet links ride on the event's conference data). Deliberately NOT the
+    // full /auth/calendar scope — that would read calendars far beyond what
+    // the feature (and the privacy policy) describe, and as a RESTRICTED
+    // scope it would trigger Google's heaviest verification tier.
     private static final List<String> SCOPES = List.of(
-        CalendarScopes.CALENDAR,
+        CalendarScopes.CALENDAR_EVENTS,
         "https://www.googleapis.com/auth/userinfo.email" // to store the connected account email
     );
     private static final GsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();

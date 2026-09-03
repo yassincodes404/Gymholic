@@ -63,6 +63,12 @@ export function Footer() {
       <div className="px-6 md:px-10 mt-14 pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between gap-3 text-xs opacity-50">
         <span>© {new Date().getFullYear()} Gymholic. All rights reserved.</span>
         <div className="flex items-center gap-5">
+          <Link href="/privacy" className="hover:text-orange transition-colors">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="hover:text-orange transition-colors">
+            Terms &amp; Conditions
+          </Link>
           <Link href="/contact" className="hover:text-orange transition-colors">
             Contact &amp; Support
           </Link>

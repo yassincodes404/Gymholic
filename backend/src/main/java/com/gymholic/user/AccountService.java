@@ -28,6 +28,8 @@ public class AccountService {
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
     private final EmailVerificationService emailVerificationService;
+    private final com.gymholic.auth.PhoneVerificationService phoneVerificationService;
+    private final com.gymholic.calendar.repository.GoogleConnectionRepository googleConnectionRepository;
 
     @Transactional
     public void changePassword(String email, String currentPassword, String newPassword) {
@@ -88,6 +90,11 @@ public class AccountService {
         user.setGoogleId(null);
         userRepository.save(user);
 
+        // The stored Google Calendar credentials must not outlive the account —
+        // a refresh token for a deleted user is exactly what the privacy policy
+        // promises is gone.
+        googleConnectionRepository.deleteByUserId(user.getId());
+
         log.info("Account {} self-deleted (anonymised as {})", originalEmail, user.getEmail());
     }
 
@@ -130,6 +137,8 @@ public class AccountService {
             .firstName(user.getFirstName())
             .lastName(user.getLastName())
             .phone(user.getPhone())
+            .phoneVerified(user.isPhoneVerified())
+            .phoneVerificationRequired(phoneVerificationService.isRequired())
             .role(user.getRole())
             .profileImageUrl(user.getProfileImageUrl())
             .bio(user.getBio())
